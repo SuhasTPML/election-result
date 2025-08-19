@@ -1,0 +1,549 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Interactive Parliament Chart Generator</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; background-color: #f0f2f5; color: #333; margin: 0; height: 100vh; }
+        .container { display: flex; width: 100%; height: 100%; }
+        .settings-panel { width: 380px; padding: 20px; background-color: #fff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); overflow-y: auto; flex-shrink: 0; }
+        .settings-panel h2 { margin-top: 0; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; }
+        .setting-group { margin-bottom: 25px; }
+        .setting-group h3 { margin-bottom: 10px; font-size: 1em; color: #555; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px;}
+        .setting-group label, .setting-group .label { display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; width: 100%; margin-bottom: 8px; }
+        .setting-group input[type="range"] { width: 60%; }
+        .setting-group input[type="number"], .setting-group input[type="color"], .setting-group input[type="text"] { padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
+        .setting-group input[type="checkbox"] { transform: scale(1.2); }
+        .hidden { display: none; }
+        .party-config { margin-bottom: 15px; padding: 15px; border: 1px solid #eee; border-radius: 6px; background-color: #fafafa; }
+        .party-config .party-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; gap: 10px; }
+        .party-config .party-header input[type="text"] { font-weight: bold; flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .party-config .party-header input[type="color"] { width: 40px; height: 40px; border: none; border-radius: 4px; cursor: pointer; }
+        .party-config .party-header button { background-color: #fbebeb; border: 1px solid #f4c7c7; color: #c52626; border-radius: 4px; cursor: pointer; padding: 8px 12px; font-weight: 500; transition: background-color 0.2s; }
+        .party-config .party-header button:hover { background-color: #f8d4d4; }
+        .party-config .party-seats { display: flex; flex-direction: column; gap: 10px; }
+        .party-config .party-seats label { display: flex; flex-direction: column; font-size: 0.85em; font-weight: 500; color: #555; }
+        .party-config .party-seats input[type="number"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; margin-top: 4px; }
+        #add-party { width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #eef4ff; border: 1px solid #c7d9f4; border-radius: 6px; font-size: 16px; transition: background-color 0.2s; }
+        #add-party:hover { background-color: #dcedff; }
+        .year-config { margin-bottom: 10px; display: flex; gap: 10px; }
+        .year-config input[type="text"] { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .year-config button { background-color: #fbebeb; border: 1px solid #f4c7c7; color: #c52626; border-radius: 4px; cursor: pointer; padding: 8px 12px; font-weight: 500; transition: background-color 0.2s; }
+        .year-config button:hover { background-color: #f8d4d4; }
+        #add-year { width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #eef4ff; border: 1px solid #c7d9f4; border-radius: 6px; font-size: 16px; transition: background-color 0.2s; margin-bottom: 20px; }
+        #add-year:hover { background-color: #dcedff; }
+
+        .chart-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
+        #parliament-svg-container { width: 100%; max-width: 900px; }
+        #table-container { width: 100%; max-width: 900px; margin-top: 20px; }
+        .seat { stroke: #fff; stroke-width: 1px; transition: opacity 0.3s ease; }
+        .seat.dimmed { opacity: 0.2; }
+        .controls { width: 100%; max-width: 900px; text-align: left; margin-bottom: 20px;}
+        .controls button { padding: 8px 16px; margin: 0 4px 0 0; font-size: 16px; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; transition: background-color 0.2s, color 0.2s; }
+        .controls button.active { background-color: #333; color: #fff; border-color: #333; }
+        table { width: 100%; border-collapse: collapse; background-color: #fff; border: 1px solid #e0e0e0; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e0e0e0; font-size: 0.9em;}
+        th { background-color: #f8f8f8; font-weight: 600; }
+        .party-name { display: flex; align-items: center; }
+        .color-swatch { width: 15px; height: 15px; border-radius: 3px; margin-right: 10px; display: inline-block; flex-shrink: 0; }
+        .seat-change { font-size: 0.9em; margin-left: 8px; font-weight: bold;}
+        .legend { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; font-size: 0.8em; margin-top: 20px;}
+        .legend-item { display: flex; align-items: center; }
+        .legend-swatch { margin-right: 5px; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="settings-panel">
+        <h2>Settings</h2>
+        <div class="setting-group">
+            <h3>Parliament Layout</h3>
+            <label><span>Arc Size (degrees)</span><span id="arc-size-value">180</span></label>
+            <input type="range" id="arc-size" min="90" max="360" value="180">
+            <label><span>Inner Radius (%)</span><span id="inner-radius-value">30</span></label>
+            <input type="range" id="inner-radius" min="0" max="90" value="30">
+        </div>
+        <div class="setting-group">
+            <h3>Seat Size</h3>
+            <label><input type="radio" name="seat-size-mode" value="auto" checked> Auto (No Overlap)</label>
+            <label><input type="radio" name="seat-size-mode" value="fixed"> Fixed</label>
+            <div id="fixed-seat-size-container" class="hidden">
+                <label><span>Radius (px)</span><input type="number" id="fixed-seat-radius" value="8" min="1" max="50"></label>
+            </div>
+        </div>
+        <div class="setting-group">
+            <h3>Majority Line</h3>
+            <label><span>Show Line</span><input type="checkbox" id="majority-line-enabled"></label>
+            <div id="majority-line-options" class="hidden">
+                <label><span>Label Text</span><input type="text" id="majority-line-label" value="Majority"></label>
+                <label><span>Position (%)</span><input type="number" id="majority-line-position" value="50" min="1" max="100"></label>
+                <label><span>Line Color</span><input type="color" id="majority-line-color" value="#000000"></label>
+                <label><span>Thickness (px)</span><input type="number" id="majority-line-width" value="1.5" min="0.5" step="0.5">
+            </div>
+        </div>
+        <div class="setting-group">
+            <h3>Legend</h3>
+             <label><span>Show Legend</span><input type="checkbox" id="legend-enabled" checked></label>
+             <div id="legend-options">
+                 <label><span>Orientation</span></label>
+                 <div>
+                     <label><input type="radio" name="legend-orientation" value="horizontal" checked> Horizontal</label>
+                     <label><input type="radio" name="legend-orientation" value="vertical"> Vertical</label>
+                 </div>
+             </div>
+        </div>
+        <div class="setting-group">
+            <h3>Year Configuration</h3>
+            <div id="year-config-container"></div>
+            <button id="add-year">Add Year</button>
+        </div>
+        <div class="setting-group">
+            <h3>Party Configuration</h3>
+            <div id="party-config-container"></div>
+            <button id="add-party">Add Party</button>
+        </div>
+    </div>
+    <div class="chart-container">
+        <h1 id="chart-title">Parliament Chart</h1>
+        <div id="controls" class="controls"></div>
+        <div id="parliament-svg-container"><svg id="parliament-chart"></svg></div>
+        <div id="legend-container" class="legend"></div>
+        <div id="table-container"></div>
+    </div>
+</div>
+
+<script>
+    // --- INITIAL DATA (CAN BE EMPTY) ---
+    const CHART_TITLE = "Fictional Election Results";
+    let ELECTION_DATA = { "years": ["2020", "2024"], "parties": [] };
+    let PARTY_COLORS = {};
+
+    let state = {
+        current_election_index: 0, arc_degrees: 180, inner_radius_ratio: 0.3, seat_size_mode: 'auto',
+        fixed_seat_radius: 8, majority_line: { enabled: false, label: "Majority", position: 50, color: "#000000", width: 1.5 },
+        legend: { enabled: true, orientation: 'horizontal' }, animation_duration: 800
+    };
+
+    const svg = d3.select("#parliament-chart");
+    const chartGroup = svg.append("g");
+    const majorityLineGroup = svg.append("g").attr("class", "majority-line-group");
+
+    // --- CORE LAYOUT ALGORITHM (UNCHANGED) ---
+    function getLayoutCapacity(seatRadius, chartHeight, innerRadiusRatio, arcDegrees) {
+        if (seatRadius < 0.5) return 0;
+        const spacing = seatRadius * 0.15;
+        const footprint = (seatRadius * 2) + spacing;
+        const arcRadians = arcDegrees * Math.PI / 180;
+        let capacity = 0;
+        let rowRadius = chartHeight - seatRadius;
+        while (rowRadius > chartHeight * innerRadiusRatio) {
+            const circumference = rowRadius * arcRadians;
+            capacity += Math.floor(circumference / footprint);
+            rowRadius -= footprint;
+        }
+        return capacity;
+    }
+    
+    function calculateLayout(totalSeats, chartHeight, config) {
+        if (totalSeats === 0) return { positions: [], seatRadius: 0 };
+        let seatRadius = config.fixed_seat_radius;
+        if (config.seat_size_mode === 'auto') {
+            let lowerBound = 0.1, upperBound = 50, bestRadius = 1;
+            for (let i = 0; i < 30; i++) {
+                let mid = (lowerBound + upperBound) / 2;
+                if (getLayoutCapacity(mid, chartHeight, config.inner_radius_ratio, config.arc_degrees) >= totalSeats) {
+                    bestRadius = mid;
+                    lowerBound = mid;
+                } else { upperBound = mid; }
+            }
+            seatRadius = bestRadius;
+        }
+        const spacing = seatRadius * 0.15;
+        const footprint = (seatRadius * 2) + spacing;
+        const arcRadians = config.arc_degrees * Math.PI / 180;
+        let rows = [];
+        let rowRadius = chartHeight - seatRadius;
+        while (rowRadius > chartHeight * config.inner_radius_ratio) {
+            const circumference = rowRadius * arcRadians;
+            const capacity = Math.floor(circumference / footprint);
+            if (capacity <=0) break;
+            rows.push({ radius: rowRadius, capacity: capacity });
+            rowRadius -= footprint;
+        }
+        let totalArcLength = 0;
+        rows.forEach(r => { totalArcLength += r.radius * arcRadians; });
+        const seatsPerRow = [];
+        let seatsAssigned = 0;
+        for (let i = 0; i < rows.length; i++) {
+            let seatsInRow = (i < rows.length -1) ? (totalArcLength > 0 ? Math.round((arcRadians * rows[i].radius * totalSeats) / totalArcLength) : 0) : (totalSeats - seatsAssigned);
+            seatsPerRow.push(Math.min(rows[i].capacity, seatsInRow));
+            seatsAssigned += seatsInRow;
+        }
+        let seatDifference = totalSeats - seatsPerRow.reduce((a,b) => a+b, 0);
+        for(let i=0; i < Math.abs(seatDifference); i++) { seatsPerRow[i % seatsPerRow.length] += Math.sign(seatDifference); }
+        const positions = [];
+        const startAngle = (Math.PI - arcRadians) / 2;
+        for(let i=0; i<rows.length; i++) {
+            const radius = rows[i].radius;
+            const numSeatsInRow = seatsPerRow[i];
+            const angleStep = numSeatsInRow > 1 ? arcRadians / (numSeatsInRow - 1 || 1) : 0;
+            for (let j = 0; j < numSeatsInRow; j++) {
+                const angle = Math.PI - startAngle - (j * angleStep);
+                positions.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * -radius, angle, radius });
+            }
+        }
+        positions.sort((a, b) => b.angle - a.angle);
+        return { positions: positions.slice(0, totalSeats), seatRadius };
+    }
+    
+    // --- DRAWING FUNCTIONS ---
+    function drawMajorityLine(positions, totalSeats, config) {
+        majorityLineGroup.html("");
+        if (!config.majority_line.enabled || totalSeats < 2) return;
+        
+        // Calculate the angle based on the configurable position percentage
+        // Convert percentage to a decimal (0-1)
+        const positionRatio = config.majority_line.position / 100;
+        
+        // Find the angle that corresponds to the specified position
+        // We need to find the seat index that corresponds to this position
+        const targetIndex = Math.max(0, Math.min(totalSeats - 1, Math.floor(totalSeats * positionRatio)));
+        
+        // For edge cases, we might need to calculate the angle differently
+        let targetAngle;
+        if (targetIndex === 0) {
+            // First seat
+            targetAngle = positions[0].angle;
+        } else if (targetIndex >= positions.length - 1) {
+            // Last seat
+            targetAngle = positions[positions.length - 1].angle;
+        } else {
+            // Interpolate between the angles of the seats around the target position
+            const lowerIndex = Math.floor(totalSeats * positionRatio);
+            const upperIndex = Math.min(lowerIndex + 1, positions.length - 1);
+            const ratio = (totalSeats * positionRatio) - lowerIndex;
+            targetAngle = positions[lowerIndex].angle * (1 - ratio) + positions[upperIndex].angle * ratio;
+        }
+        
+        const outerRadius = Math.max(...positions.map(p => p.radius));
+        const innerRadius = Math.min(...positions.map(p => p.radius));
+
+        // Increase line length by extending beyond the seating area
+        const extension = 35; // Extend line by 35 pixels beyond outer radius (increased from 20)
+        const innerExtension = 25; // Extend line inward by 25 pixels (increased from 10)
+        
+        const x1 = Math.cos(targetAngle) * (innerRadius - innerExtension);
+        const y1 = Math.sin(targetAngle) * -(innerRadius - innerExtension);
+        const x2 = Math.cos(targetAngle) * (outerRadius + extension);
+        const y2 = Math.sin(targetAngle) * -(outerRadius + extension);
+
+        majorityLineGroup.append("line")
+            .attr("x1", x1).attr("y1", y1).attr("x2", x2).attr("y2", y2)
+            .attr("stroke", config.majority_line.color)
+            .attr("stroke-width", config.majority_line.width + 2) // Increase thickness by 2px
+            .attr("stroke-dasharray", "6,6"); // Slightly larger dashes
+
+        // Position text at the top of the chart area, aligned with the line
+        const textX = Math.cos(targetAngle) * (outerRadius + 55); // Position above the chart, aligned with the line
+        const textY = Math.sin(targetAngle) * -(outerRadius + 55);
+        majorityLineGroup.append("text")
+             .attr("x", textX)
+             .attr("y", textY)
+             .attr("dy", "0.35em").attr("text-anchor", "middle")
+             .style("font-size", "14px").style("font-weight", "bold").style("fill", config.majority_line.color)
+             .text(config.majority_line.label);
+    }
+
+    function update(triggeringEvent = "manual") {
+        const processedData = ELECTION_DATA.parties.map(p => ({...p, color: PARTY_COLORS[p.party], seats: p.seats.map(s => parseInt(s, 10) || 0)}));
+        const partiesForYear = [...processedData].map(p => ({...p, seats: p.seats[state.current_election_index]})).filter(p => p.seats > 0);
+        const currentYearData = [];
+        partiesForYear.forEach(party => { for (let i = 0; i < party.seats; i++) { currentYearData.push({ name: party.party, color: party.color }); } });
+        const totalSeats = currentYearData.length;
+        
+        const container = d3.select("#parliament-svg-container");
+        const width = container.node().getBoundingClientRect().width;
+        const baseHeight = width / 2 * (state.arc_degrees > 180 ? 2 : 1);
+        
+        // Calculate layout first to get actual seat positions
+        const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, state);
+        
+        // Set responsive SVG with viewBox
+        svg.attr("width", "100%").attr("height", "100%");
+        
+        // Calculate viewBox to fit all seats with padding
+        const padding = 30;
+        const textPadding = 70; // Additional padding for majority line text
+        let minX = 0, maxX = 0, minY = 0, maxY = 0;
+        if (positions.length > 0) {
+            const xPositions = positions.map(p => p.x);
+            const yPositions = positions.map(p => p.y);
+            minX = Math.min(...xPositions) - seatRadius - padding;
+            maxX = Math.max(...xPositions) + seatRadius + padding;
+            minY = Math.min(...yPositions) - seatRadius - padding - textPadding; // Add extra padding for text
+            maxY = Math.max(...yPositions) + seatRadius + padding;
+        } else {
+            // Default bounds when no seats
+            minX = -width/2;
+            maxX = width/2;
+            minY = -baseHeight/2 - textPadding; // Add extra padding for text
+            maxY = baseHeight/2;
+        }
+        
+        const viewBoxWidth = maxX - minX;
+        const viewBoxHeight = maxY - minY;
+        svg.attr("viewBox", `${minX} ${minY} ${viewBoxWidth} ${viewBoxHeight}`)
+           .attr("preserveAspectRatio", "xMidYMid meet");
+        
+        // Position chart group at (0,0) since viewBox handles positioning
+        chartGroup.attr("transform", "translate(0,0)");
+        majorityLineGroup.attr("transform", "translate(0,0)");
+        
+        if (totalSeats === 0) { chartGroup.selectAll(".seat").remove(); majorityLineGroup.html(""); }
+        
+        chartGroup.selectAll(".seat")
+            .data(currentYearData, (d, i) => `${d.name}-${state.current_election_index}-${i}`)
+            .join(
+                enter => enter.append("circle").attr("class", "seat").attr("fill", d => d.color).attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0)
+                    .call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius - 0.5)),
+                update => update.transition().duration(state.animation_duration).attr("cx", (d, i) => positions[i].x).attr("cy", (d, i) => positions[i].y).attr("r", seatRadius - 0.5).attr("fill", d => d.color),
+                exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
+            )
+            .on("mouseover", function(event, d) {
+                chartGroup.selectAll(".seat").classed("dimmed", true);
+                chartGroup.selectAll(".seat").filter(p => p && p.name === d.name).classed("dimmed", false);
+            })
+            .on("mouseout", function() {
+                chartGroup.selectAll(".seat").classed("dimmed", false);
+            });
+            
+        drawMajorityLine(positions, totalSeats, state);
+        updateLegend(partiesForYear);
+        updateTable();
+        updateControls();
+    }
+    
+    // --- UI & DATA MANAGEMENT FUNCTIONS ---
+    function updateLegend(parties) {
+        const legendContainer = d3.select("#legend-container");
+        legendContainer.html("").style("display", state.legend.enabled ? "flex" : "none");
+        if (!state.legend.enabled) return;
+        legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
+        parties.forEach(party => {
+            const item = legendContainer.append("div").attr("class", "legend-item");
+            item.append("div").attr("class", "legend-swatch").style("width", "15px").style("height", "15px")
+                .style("background-color", party.color).style("border-radius", "3px");
+            item.append("span").text(`${party.party} (${party.seats})`);
+        });
+    }
+    function updateTable() {
+        const tableContainer = d3.select("#table-container");
+        tableContainer.html("");
+        
+        if (ELECTION_DATA.parties.length === 0) return;
+        
+        const table = tableContainer.append("table");
+        const thead = table.append("thead");
+        const tbody = table.append("tbody");
+        
+        // Create header row
+        const headerRow = thead.append("tr");
+        headerRow.append("th").text("Party");
+        ELECTION_DATA.years.forEach(year => {
+            headerRow.append("th").text(year);
+        });
+        
+        // Create data rows
+        ELECTION_DATA.parties.forEach(party => {
+            const row = tbody.append("tr");
+            
+            // Party name with color swatch
+            const nameCell = row.append("td").attr("class", "party-name");
+            nameCell.append("div")
+                .attr("class", "color-swatch")
+                .style("background-color", PARTY_COLORS[party.party]);
+            nameCell.append("span").text(party.party);
+            
+            // Seats for each year
+            party.seats.forEach((seat, i) => {
+                const cell = row.append("td").text(seat);
+                
+                // Add change indicator if not the first year
+                if (i > 0) {
+                    const change = parseInt(seat, 10) - parseInt(party.seats[i-1], 10);
+                    if (change !== 0) {
+                        cell.append("span")
+                            .attr("class", "seat-change")
+                            .text(`(${change > 0 ? '+' : ''}${change})`)
+                            .style("color", change > 0 ? "green" : "red");
+                    }
+                }
+            });
+        });
+    }
+    function updateControls() {
+        const controls = d3.select("#controls");
+        controls.html("");
+        ELECTION_DATA.years.forEach((year, i) => {
+            const button = controls.append("button").text(year).classed("active", i === state.current_election_index);
+            button.on("click", () => { state.current_election_index = i; update(); });
+        });
+    }
+
+    function renderYearConfig() {
+        const container = document.getElementById('year-config-container');
+        container.innerHTML = '';
+        ELECTION_DATA.years.forEach((year, index) => {
+            const yearDiv = document.createElement('div');
+            yearDiv.className = 'year-config';
+            yearDiv.innerHTML = `
+                <input type="text" value="${year}" placeholder="Year" onchange="updateYearData(${index}, this.value)">
+                <button onclick="removeYear(${index})">Remove</button>
+            `;
+            container.appendChild(yearDiv);
+        });
+    }
+
+    function addYear() {
+        const newYear = new Date().getFullYear().toString();
+        ELECTION_DATA.years.push(newYear);
+        // Add a seat count of 0 for each party for the new year
+        ELECTION_DATA.parties.forEach(party => {
+            party.seats.push("0");
+        });
+        renderYearConfig();
+        renderPartyConfig(); // Re-render party config to reflect updated years
+        updateControls();
+        update();
+    }
+
+    function removeYear(index) {
+        if (ELECTION_DATA.years.length <= 1) {
+            alert("You must have at least one year.");
+            return;
+        }
+        ELECTION_DATA.years.splice(index, 1);
+        // Remove the seat count for each party for the removed year
+        ELECTION_DATA.parties.forEach(party => {
+            party.seats.splice(index, 1);
+        });
+        // Adjust current election index if necessary
+        if (state.current_election_index >= ELECTION_DATA.years.length) {
+            state.current_election_index = ELECTION_DATA.years.length - 1;
+        }
+        renderYearConfig();
+        renderPartyConfig(); // Re-render party config to reflect updated years
+        updateControls();
+        update();
+    }
+
+    function updateYearData(index, value) {
+        ELECTION_DATA.years[index] = value;
+        renderYearConfig();
+        renderPartyConfig(); // Re-render party config to reflect updated years
+        updateControls();
+        update();
+    }
+
+    function setupEventListeners() {
+        document.getElementById('arc-size').addEventListener('input', e => { state.arc_degrees = +e.target.value; document.getElementById('arc-size-value').textContent = e.target.value; update(); });
+        document.getElementById('inner-radius').addEventListener('input', e => { state.inner_radius_ratio = +e.target.value / 100; document.getElementById('inner-radius-value').textContent = e.target.value; update(); });
+        document.querySelectorAll('input[name="seat-size-mode"]').forEach(r => r.addEventListener('change', e => { state.seat_size_mode = e.target.value; document.getElementById('fixed-seat-size-container').classList.toggle('hidden', e.target.value === 'auto'); update(); }));
+        document.getElementById('fixed-seat-radius').addEventListener('input', e => { state.fixed_seat_radius = +e.target.value; update(); });
+        document.getElementById('majority-line-enabled').addEventListener('change', e => { state.majority_line.enabled = e.target.checked; document.getElementById('majority-line-options').classList.toggle('hidden', !e.target.checked); update(); });
+        document.getElementById('majority-line-label').addEventListener('input', e => { state.majority_line.label = e.target.value; update(); });
+        document.getElementById('majority-line-position').addEventListener('input', e => { state.majority_line.position = +e.target.value; update(); });
+        document.getElementById('majority-line-color').addEventListener('input', e => { state.majority_line.color = e.target.value; update(); });
+        document.getElementById('majority-line-width').addEventListener('input', e => { state.majority_line.width = +e.target.value; update(); });
+        document.getElementById('legend-enabled').addEventListener('change', e => { state.legend.enabled = e.target.checked; document.getElementById('legend-options').classList.toggle('hidden', !e.target.checked); update(); });
+        document.querySelectorAll('input[name="legend-orientation"]').forEach(r => r.addEventListener('change', e => { state.legend.orientation = e.target.value; update(); }));
+        document.getElementById('add-party').addEventListener('click', addParty);
+        document.getElementById('add-year').addEventListener('click', addYear);
+        window.addEventListener('resize', () => update("resize"));
+    }
+
+    function addParty() {
+        const party = { party: `New Party ${ELECTION_DATA.parties.length + 1}`, seats: ELECTION_DATA.years.map(() => "0") };
+        ELECTION_DATA.parties.push(party);
+        PARTY_COLORS[party.party] = getRandomColor();
+        renderPartyConfig();
+        update();
+    }
+
+    function removeParty(index) {
+        const party = ELECTION_DATA.parties.splice(index, 1)[0];
+        delete PARTY_COLORS[party.party];
+        renderPartyConfig();
+        update();
+    }
+    
+    function updatePartyData(index, field, value, yearIndex = null) {
+        const oldName = ELECTION_DATA.parties[index].party;
+        if (field === 'name') {
+            ELECTION_DATA.parties[index].party = value;
+            PARTY_COLORS[value] = PARTY_COLORS[oldName];
+            delete PARTY_COLORS[oldName];
+            renderPartyConfig(); // Re-render to update names
+        } else if (field === 'seats') {
+            ELECTION_DATA.parties[index].seats[yearIndex] = value;
+        } else if (field === 'color') {
+            PARTY_COLORS[oldName] = value;
+        }
+        update();
+    }
+
+    function getRandomColor() { return `#${Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')}`; }
+
+    function renderPartyConfig() {
+        const container = document.getElementById('party-config-container');
+        container.innerHTML = '';
+        ELECTION_DATA.parties.forEach((party, index) => {
+            const partyDiv = document.createElement('div');
+            partyDiv.className = 'party-config';
+            
+            const header = document.createElement('div');
+            header.className = 'party-header';
+            header.innerHTML = `
+                <input type="text" value="${party.party}" placeholder="Party Name" onchange="updatePartyData(${index}, 'name', this.value)">
+                <input type="color" value="${PARTY_COLORS[party.party]}" onchange="updatePartyData(${index}, 'color', this.value)">
+                <button onclick="removeParty(${index})">Remove</button>
+            `;
+            
+            const seatsDiv = document.createElement('div');
+            seatsDiv.className = 'party-seats';
+            ELECTION_DATA.years.forEach((year, yearIndex) => {
+                const label = document.createElement('label');
+                label.textContent = year;
+                
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.value = party.seats[yearIndex];
+                input.min = '0';
+                input.oninput = () => updatePartyData(index, 'seats', input.value, yearIndex);
+                
+                label.appendChild(input);
+                seatsDiv.appendChild(label);
+            });
+
+            partyDiv.appendChild(header);
+            partyDiv.appendChild(seatsDiv);
+            container.appendChild(partyDiv);
+        });
+    }
+
+    // --- INITIAL DRAW ---
+    document.getElementById('chart-title').textContent = CHART_TITLE;
+    setupEventListeners();
+    renderYearConfig(); // Initial render of year config
+    renderPartyConfig(); // Initial render of party config
+    if (ELECTION_DATA.parties.length === 0) { addParty(); addParty(); } // Add a couple of parties to start
+    else { update(); }
+
+</script>
+</body>
+</html>
+    
