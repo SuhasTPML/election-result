@@ -501,14 +501,68 @@
             flex-wrap: wrap; 
             gap: 4px;
         }
+        .parliament-chart-wrapper .parliament-controls button { 
+            padding: 8px 16px; 
+            margin: 0; 
+            font-size: 16px; 
+            border: 1px solid #ccc; 
+            background-color: #f0f0f0; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            transition: background-color 0.2s, color 0.2s; 
+            flex: 0 0 auto; 
+        }
+        .parliament-chart-wrapper .parliament-controls button.active { 
+            background-color: #333; 
+            color: #fff; 
+            border-color: #333; 
+        }
         .parliament-chart-wrapper .parliament-svg-container { 
             width: 100%; 
             max-width: 900px; 
+        }
+        .parliament-chart-wrapper .parliament-svg-container svg {
+            width: 100%;
+            height: auto;
         }
         .parliament-chart-wrapper .parliament-table-container { 
             width: 100%; 
             max-width: 900px; 
             margin-top: 10px; 
+        }
+        .parliament-chart-wrapper table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            background-color: #fff; 
+            border: 1px solid #e0e0e0; 
+        }
+        .parliament-chart-wrapper th, 
+        .parliament-chart-wrapper td { 
+            padding: 10px 12px; 
+            text-align: left; 
+            border-bottom: 1px solid #e0e0e0; 
+            font-size: 0.9em;
+        }
+        .parliament-chart-wrapper th { 
+            background-color: #f8f8f8; 
+            font-weight: 600; 
+        }
+        .parliament-chart-wrapper .party-name { 
+            display: flex; 
+            align-items: center; 
+        }
+        .parliament-chart-wrapper .color-swatch { 
+            width: 15px; 
+            height: 15px; 
+            border-radius: 3px; 
+            margin-right: 10px; 
+            display: inline-block; 
+            flex-shrink: 0; 
+        }
+        .parliament-chart-wrapper .seat-change { 
+            font-size: 0.9em; 
+            margin-left: 8px; 
+            font-weight: bold;
         }
         .parliament-chart-wrapper .parliament-legend { 
             display: flex; 
@@ -517,6 +571,14 @@
             justify-content: center; 
             font-size: 0.8em; 
             margin-top: 10px;
+        }
+        .parliament-chart-wrapper .legend-item { 
+            display: flex; 
+            align-items: center; 
+        }
+        .parliament-chart-wrapper .legend-swatch { 
+            margin-right: 5px; 
+            flex-shrink: 0; 
         }
     <\/style>
 </head>
@@ -568,7 +630,14 @@
         }
         const viewBoxWidth = maxX - minX;
         const viewBoxHeight = maxY - minY;
+        // Set the viewBox for proper scaling
         svg.attr("viewBox", \`\${minX} \${minY} \${viewBoxWidth} \${viewBoxHeight}\`).attr("preserveAspectRatio", "xMidYMid meet");
+        // Set explicit dimensions based on content, but cap at reasonable maximums
+        const maxWidth = Math.min(viewBoxWidth, 900); // Max width of 900px
+        const scale = maxWidth / viewBoxWidth;
+        const finalWidth = maxWidth;
+        const finalHeight = viewBoxHeight * scale;
+        svg.attr("width", finalWidth).attr("height", finalHeight);
         chartGroup.attr("transform", "translate(0,0)");
         majorityLineGroup.attr("transform", "translate(0,0)");
         if (totalSeats === 0) { chartGroup.selectAll(".parliament-seat").remove(); majorityLineGroup.html(""); }
