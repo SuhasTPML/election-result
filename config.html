@@ -257,7 +257,7 @@
         const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, state);
         svg.attr("width", "100%").attr("height", "100%");
         const padding = 30;
-        const textPadding = 70;
+        const textPadding = 10;
         let minX = 0, maxX = 0, minY = 0, maxY = 0;
         if (positions.length > 0) {
             const xPositions = positions.map(p => p.x);
@@ -616,7 +616,7 @@
         const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, state);
         svg.attr("width", "100%").attr("height", "100%");
         const padding = 30;
-        const textPadding = 70;
+        const textPadding = 10;
         let minX = 0, maxX = 0, minY = 0, maxY = 0;
         if (positions.length > 0) {
             const xPositions = positions.map(p => p.x);
