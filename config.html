@@ -302,6 +302,30 @@
                 .classed("dimmed", false)
                 .style("stroke", darkerColor)
                 .style("stroke-width", "2px");
+                
+            // Highlight the party in the legend
+            d3.selectAll(".legend-item")
+                .style("opacity", 0.5);
+            d3.selectAll(".legend-item")
+                .filter(function(p) { 
+                    // Find the legend item that matches the party name
+                    const text = d3.select(this).select("span").text();
+                    return text.startsWith(d.name);
+                })
+                .style("opacity", 1)
+                .style("font-weight", "bold");
+                
+            // Highlight the party in the table
+            d3.selectAll("#table-container table tbody tr")
+                .style("opacity", 0.5);
+            d3.selectAll("#table-container table tbody tr")
+                .filter(function() {
+                    const partyNameCell = d3.select(this).select(".party-name span");
+                    return partyNameCell.text() === d.name;
+                })
+                .style("opacity", 1)
+                .style("font-weight", "bold")
+                .style("background-color", "#f0f8ff");
         })
         .on("mouseout", function() {
             // On mouse out, reset all seats to their default state
@@ -309,6 +333,17 @@
                 .classed("dimmed", false)
                 .style("stroke", "#fff") // Reset to default white border
                 .style("stroke-width", "1px"); // Reset to default border width
+                
+            // Reset legend highlighting
+            d3.selectAll(".legend-item")
+                .style("opacity", 1)
+                .style("font-weight", "normal");
+                
+            // Reset table highlighting
+            d3.selectAll("#table-container table tbody tr")
+                .style("opacity", 1)
+                .style("font-weight", "normal")
+                .style("background-color", "transparent");
         });
         drawMajorityLine(positions, totalSeats, state);
         updateLegend(partiesForYear);
@@ -648,8 +683,43 @@
         ).on("mouseover", function(event, d) {
             chartGroup.selectAll(".parliament-seat").classed("dimmed", true);
             chartGroup.selectAll(".parliament-seat").filter(p => p && p.name === d.name).classed("dimmed", false);
+            
+            // Highlight the party in the legend
+            d3.selectAll(".legend-item")
+                .style("opacity", 0.5);
+            d3.selectAll(".legend-item")
+                .filter(function(p) { 
+                    // Find the legend item that matches the party name
+                    const text = d3.select(this).select("span").text();
+                    return text.startsWith(d.name);
+                })
+                .style("opacity", 1)
+                .style("font-weight", "bold");
+                
+            // Highlight the party in the table
+            d3.selectAll("#table-container table tbody tr")
+                .style("opacity", 0.5);
+            d3.selectAll("#table-container table tbody tr")
+                .filter(function() {
+                    const partyNameCell = d3.select(this).select(".party-name span");
+                    return partyNameCell.text() === d.name;
+                })
+                .style("opacity", 1)
+                .style("font-weight", "bold")
+                .style("background-color", "#f0f8ff");
         }).on("mouseout", function() {
             chartGroup.selectAll(".parliament-seat").classed("dimmed", false);
+            
+            // Reset legend highlighting
+            d3.selectAll(".legend-item")
+                .style("opacity", 1)
+                .style("font-weight", "normal");
+                
+            // Reset table highlighting
+            d3.selectAll("#table-container table tbody tr")
+                .style("opacity", 1)
+                .style("font-weight", "normal")
+                .style("background-color", "transparent");
         });
         drawMajorityLine(positions, totalSeats, state);
         updateLegend(partiesForYear);
