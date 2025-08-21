@@ -681,14 +681,20 @@
             update => update.transition().duration(state.animation_duration).attr("cx", (d, i) => positions[i].x).attr("cy", (d, i) => positions[i].y).attr("r", seatRadius - 0.5).attr("fill", d => d.color),
             exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
         ).on("mouseover", function(event, d) {
+            // Calculate a darker shade of the party's color
+            const darkerColor = d3.color(d.color).darker(0.7);
+
             // Dim all seats first
             chartGroup.selectAll(".parliament-seat").classed("dimmed", true);
             
             // Select all seats of the hovered party
             const partySeats = chartGroup.selectAll(".parliament-seat").filter(p => p && p.name === d.name);
             
-            // Un-dim them
-            partySeats.classed("dimmed", false);
+            // Un-dim them and apply the dynamic border style
+            partySeats
+                .classed("dimmed", false)
+                .style("stroke", darkerColor)
+                .style("stroke-width", "2px");
             
             // Highlight the party in the legend
             d3.selectAll(".legend-item")
@@ -716,7 +722,9 @@
         }).on("mouseout", function() {
             // On mouse out, reset all seats to their default state
             chartGroup.selectAll(".parliament-seat")
-                .classed("dimmed", false);
+                .classed("dimmed", false)
+                .style("stroke", "#fff") // Reset to default white border
+                .style("stroke-width", "1px"); // Reset to default border width
                 
             // Reset legend highlighting
             d3.selectAll(".legend-item")

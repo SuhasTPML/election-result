@@ -8,7 +8,7 @@
     <style id="chart-styles">
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; background-color: #f0f2f5; color: #333; margin: 0; height: 100vh; }
         .container { display: flex; width: 100%; height: 100%; }
-        .settings-panel { width: 380px; padding: 20px; background-color: #fff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); overflow-y: auto; flex-shrink: 0; height: 100vh; box-sizing: border-box; }
+        .settings-panel { width: 380px; padding: 20px; background-color: #fff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); overflow-y: auto; flex-shrink: 0; }
         .settings-panel h2 { margin-top: 0; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; }
         .setting-group { margin-bottom: 25px; }
         .setting-group h3 { margin-bottom: 10px; font-size: 1em; color: #555; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px;}
@@ -257,7 +257,7 @@
         const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, state);
         svg.attr("width", "100%").attr("height", "100%");
         const padding = 30;
-        const textPadding = 10;
+        const textPadding = 70;
         let minX = 0, maxX = 0, minY = 0, maxY = 0;
         if (positions.length > 0) {
             const xPositions = positions.map(p => p.x);
@@ -271,14 +271,7 @@
         }
         const viewBoxWidth = maxX - minX;
         const viewBoxHeight = maxY - minY;
-        // Set the viewBox for proper scaling
         svg.attr("viewBox", `${minX} ${minY} ${viewBoxWidth} ${viewBoxHeight}`).attr("preserveAspectRatio", "xMidYMid meet");
-        // Set explicit dimensions based on content, but cap at reasonable maximums
-        const maxWidth = Math.min(viewBoxWidth, 900); // Max width of 900px
-        const scale = maxWidth / viewBoxWidth;
-        const finalWidth = maxWidth;
-        const finalHeight = viewBoxHeight * scale;
-        svg.attr("width", finalWidth).attr("height", finalHeight);
         chartGroup.attr("transform", "translate(0,0)");
         majorityLineGroup.attr("transform", "translate(0,0)");
         if (totalSeats === 0) { chartGroup.selectAll(".seat").remove(); majorityLineGroup.html(""); }
@@ -501,68 +494,14 @@
             flex-wrap: wrap; 
             gap: 4px;
         }
-        .parliament-chart-wrapper .parliament-controls button { 
-            padding: 8px 16px; 
-            margin: 0; 
-            font-size: 16px; 
-            border: 1px solid #ccc; 
-            background-color: #f0f0f0; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            transition: background-color 0.2s, color 0.2s; 
-            flex: 0 0 auto; 
-        }
-        .parliament-chart-wrapper .parliament-controls button.active { 
-            background-color: #333; 
-            color: #fff; 
-            border-color: #333; 
-        }
         .parliament-chart-wrapper .parliament-svg-container { 
             width: 100%; 
             max-width: 900px; 
-        }
-        .parliament-chart-wrapper .parliament-svg-container svg {
-            width: 100%;
-            height: auto;
         }
         .parliament-chart-wrapper .parliament-table-container { 
             width: 100%; 
             max-width: 900px; 
             margin-top: 10px; 
-        }
-        .parliament-chart-wrapper table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            background-color: #fff; 
-            border: 1px solid #e0e0e0; 
-        }
-        .parliament-chart-wrapper th, 
-        .parliament-chart-wrapper td { 
-            padding: 10px 12px; 
-            text-align: left; 
-            border-bottom: 1px solid #e0e0e0; 
-            font-size: 0.9em;
-        }
-        .parliament-chart-wrapper th { 
-            background-color: #f8f8f8; 
-            font-weight: 600; 
-        }
-        .parliament-chart-wrapper .party-name { 
-            display: flex; 
-            align-items: center; 
-        }
-        .parliament-chart-wrapper .color-swatch { 
-            width: 15px; 
-            height: 15px; 
-            border-radius: 3px; 
-            margin-right: 10px; 
-            display: inline-block; 
-            flex-shrink: 0; 
-        }
-        .parliament-chart-wrapper .seat-change { 
-            font-size: 0.9em; 
-            margin-left: 8px; 
-            font-weight: bold;
         }
         .parliament-chart-wrapper .parliament-legend { 
             display: flex; 
@@ -571,14 +510,6 @@
             justify-content: center; 
             font-size: 0.8em; 
             margin-top: 10px;
-        }
-        .parliament-chart-wrapper .legend-item { 
-            display: flex; 
-            align-items: center; 
-        }
-        .parliament-chart-wrapper .legend-swatch { 
-            margin-right: 5px; 
-            flex-shrink: 0; 
         }
     <\/style>
 </head>
@@ -616,7 +547,7 @@
         const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, state);
         svg.attr("width", "100%").attr("height", "100%");
         const padding = 30;
-        const textPadding = 10;
+        const textPadding = 70;
         let minX = 0, maxX = 0, minY = 0, maxY = 0;
         if (positions.length > 0) {
             const xPositions = positions.map(p => p.x);
@@ -630,14 +561,7 @@
         }
         const viewBoxWidth = maxX - minX;
         const viewBoxHeight = maxY - minY;
-        // Set the viewBox for proper scaling
         svg.attr("viewBox", \`\${minX} \${minY} \${viewBoxWidth} \${viewBoxHeight}\`).attr("preserveAspectRatio", "xMidYMid meet");
-        // Set explicit dimensions based on content, but cap at reasonable maximums
-        const maxWidth = Math.min(viewBoxWidth, 900); // Max width of 900px
-        const scale = maxWidth / viewBoxWidth;
-        const finalWidth = maxWidth;
-        const finalHeight = viewBoxHeight * scale;
-        svg.attr("width", finalWidth).attr("height", finalHeight);
         chartGroup.attr("transform", "translate(0,0)");
         majorityLineGroup.attr("transform", "translate(0,0)");
         if (totalSeats === 0) { chartGroup.selectAll(".parliament-seat").remove(); majorityLineGroup.html(""); }
