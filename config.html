@@ -271,7 +271,14 @@
         }
         const viewBoxWidth = maxX - minX;
         const viewBoxHeight = maxY - minY;
+        // Set the viewBox for proper scaling
         svg.attr("viewBox", `${minX} ${minY} ${viewBoxWidth} ${viewBoxHeight}`).attr("preserveAspectRatio", "xMidYMid meet");
+        // Set explicit dimensions based on content, but cap at reasonable maximums
+        const maxWidth = Math.min(viewBoxWidth, 900); // Max width of 900px
+        const scale = maxWidth / viewBoxWidth;
+        const finalWidth = maxWidth;
+        const finalHeight = viewBoxHeight * scale;
+        svg.attr("width", finalWidth).attr("height", finalHeight);
         chartGroup.attr("transform", "translate(0,0)");
         majorityLineGroup.attr("transform", "translate(0,0)");
         if (totalSeats === 0) { chartGroup.selectAll(".seat").remove(); majorityLineGroup.html(""); }
