@@ -245,6 +245,67 @@
         const textY = Math.sin(targetAngle) * -(outerRadius + 55);
         majorityLineGroup.append("text").attr("x", textX).attr("y", textY).attr("dy", "0.35em").attr("text-anchor", "middle").style("font-size", "14px").style("font-weight", "bold").style("fill", config.majority_line.color).text(config.majority_line.label);
     }
+    // --- HOVER INTERACTION FUNCTIONS ---
+    function highlightParty(partyName, partyColor) {
+        // Calculate a darker shade of the party's color
+        const darkerColor = d3.color(partyColor).darker(0.7);
+
+        // Dim all seats first
+        chartGroup.selectAll(".seat").classed("dimmed", true);
+        
+        // Select all seats of the hovered party
+        const partySeats = chartGroup.selectAll(".seat").filter(p => p && p.name === partyName);
+        
+        // Un-dim them and apply the dynamic border style
+        partySeats
+            .classed("dimmed", false)
+            .style("stroke", darkerColor)
+            .style("stroke-width", "2px");
+            
+        // Highlight the party in the legend
+        d3.selectAll(".legend-item")
+            .style("opacity", 0.5);
+        d3.selectAll(".legend-item")
+            .filter(function(p) { 
+                // Find the legend item that matches the party name
+                const text = d3.select(this).select("span").text();
+                return text.startsWith(partyName);
+            })
+            .style("opacity", 1)
+            .style("font-weight", "bold");
+            
+        // Highlight the party in the table
+        d3.selectAll("#table-container table tbody tr")
+            .style("opacity", 0.5);
+        d3.selectAll("#table-container table tbody tr")
+            .filter(function() {
+                const partyNameCell = d3.select(this).select(".party-name span");
+                return partyNameCell.text() === partyName;
+            })
+            .style("opacity", 1)
+            .style("font-weight", "bold")
+            .style("background-color", "#f0f8ff");
+    }
+    
+    function resetHighlighting() {
+        // Reset all seats to their default state
+        chartGroup.selectAll(".seat")
+            .classed("dimmed", false)
+            .style("stroke", "#fff") // Reset to default white border
+            .style("stroke-width", "1px"); // Reset to default border width
+            
+        // Reset legend highlighting
+        d3.selectAll(".legend-item")
+            .style("opacity", 1)
+            .style("font-weight", "normal");
+            
+        // Reset table highlighting
+        d3.selectAll("#table-container table tbody tr")
+            .style("opacity", 1)
+            .style("font-weight", "normal")
+            .style("background-color", "transparent");
+    }
+    
     function update(triggeringEvent = "manual") {
         const processedData = ELECTION_DATA.parties.map(p => ({...p, color: PARTY_COLORS[p.party], seats: p.seats.map(s => parseInt(s, 10) || 0)}));
         const partiesForYear = [...processedData].map(p => ({...p, seats: p.seats[state.current_election_index]})).filter(p => p.seats > 0);
@@ -288,62 +349,10 @@
             exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
         )
         .on("mouseover", function(event, d) {
-            // Calculate a darker shade of the party's color
-            const darkerColor = d3.color(d.color).darker(0.7);
-
-            // Dim all seats first
-            chartGroup.selectAll(".seat").classed("dimmed", true);
-            
-            // Select all seats of the hovered party
-            const partySeats = chartGroup.selectAll(".seat").filter(p => p && p.name === d.name);
-            
-            // Un-dim them and apply the dynamic border style
-            partySeats
-                .classed("dimmed", false)
-                .style("stroke", darkerColor)
-                .style("stroke-width", "2px");
-                
-            // Highlight the party in the legend
-            d3.selectAll(".legend-item")
-                .style("opacity", 0.5);
-            d3.selectAll(".legend-item")
-                .filter(function(p) { 
-                    // Find the legend item that matches the party name
-                    const text = d3.select(this).select("span").text();
-                    return text.startsWith(d.name);
-                })
-                .style("opacity", 1)
-                .style("font-weight", "bold");
-                
-            // Highlight the party in the table
-            d3.selectAll("#table-container table tbody tr")
-                .style("opacity", 0.5);
-            d3.selectAll("#table-container table tbody tr")
-                .filter(function() {
-                    const partyNameCell = d3.select(this).select(".party-name span");
-                    return partyNameCell.text() === d.name;
-                })
-                .style("opacity", 1)
-                .style("font-weight", "bold")
-                .style("background-color", "#f0f8ff");
+            highlightParty(d.name, d.color);
         })
         .on("mouseout", function() {
-            // On mouse out, reset all seats to their default state
-            chartGroup.selectAll(".seat")
-                .classed("dimmed", false)
-                .style("stroke", "#fff") // Reset to default white border
-                .style("stroke-width", "1px"); // Reset to default border width
-                
-            // Reset legend highlighting
-            d3.selectAll(".legend-item")
-                .style("opacity", 1)
-                .style("font-weight", "normal");
-                
-            // Reset table highlighting
-            d3.selectAll("#table-container table tbody tr")
-                .style("opacity", 1)
-                .style("font-weight", "normal")
-                .style("background-color", "transparent");
+            resetHighlighting();
         });
         drawMajorityLine(positions, totalSeats, state);
         updateLegend(partiesForYear);
@@ -356,9 +365,17 @@
         if (!state.legend.enabled) return;
         legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
         parties.forEach(party => {
-            const item = legendContainer.append("div").attr("class", "legend-item");
+            const item = legendContainer.append("div").attr("class", "legend-item").style("cursor", "pointer");
             item.append("div").attr("class", "legend-swatch").style("width", "15px").style("height", "15px").style("background-color", party.color).style("border-radius", "3px");
             item.append("span").text(`${party.party} (${party.seats})`);
+            
+            // Add hover listeners to legend items
+            item.on("mouseover", function() {
+                highlightParty(party.party, party.color);
+            })
+            .on("mouseout", function() {
+                resetHighlighting();
+            });
         });
     }
     function updateTable() {
@@ -372,7 +389,7 @@
         headerRow.append("th").text("Party");
         ELECTION_DATA.years.forEach(year => { headerRow.append("th").text(year); });
         ELECTION_DATA.parties.forEach(party => {
-            const row = tbody.append("tr");
+            const row = tbody.append("tr").style("cursor", "pointer");
             const nameCell = row.append("td").attr("class", "party-name");
             nameCell.append("div").attr("class", "color-swatch").style("background-color", PARTY_COLORS[party.party]);
             nameCell.append("span").text(party.party);
@@ -384,6 +401,14 @@
                         cell.append("span").attr("class", "seat-change").text(`(${change > 0 ? '+' : ''}${change})`).style("color", change > 0 ? "green" : "red");
                     }
                 }
+            });
+            
+            // Add hover listeners to table rows
+            row.on("mouseover", function() {
+                highlightParty(party.party, PARTY_COLORS[party.party]);
+            })
+            .on("mouseout", function() {
+                resetHighlighting();
             });
         });
     }
@@ -501,7 +526,7 @@
     }
 
     function generateEmbeddableHTML() {
-        const functionsToEmbed = [getLayoutCapacity, calculateLayout, drawMajorityLine, update, updateLegend, updateTable, updateControls].map(fn => fn.toString()).join('\n\n');
+        const functionsToEmbed = [getLayoutCapacity, calculateLayout, drawMajorityLine, highlightParty, resetHighlighting, update, updateLegend, updateTable, updateControls].map(fn => fn.toString()).join('\n\n');
         const styles = document.getElementById('chart-styles').innerHTML;
         const htmlTemplate = `
 <!DOCTYPE html>
@@ -618,6 +643,14 @@
             margin-right: 5px; 
             flex-shrink: 0; 
         }
+        .parliament-chart-wrapper .parliament-seat { 
+            stroke: #fff; 
+            stroke-width: 1px; 
+            transition: opacity 0.3s ease, stroke 0.2s ease, stroke-width 0.2s ease; 
+        }
+        .parliament-chart-wrapper .parliament-seat.dimmed { 
+            opacity: 0.2; 
+        }
     <\/style>
 </head>
 <body>
@@ -640,6 +673,67 @@
     const majorityLineGroup = svg.append("g").attr("class", "majority-line-group");
 
     ${functionsToEmbed}
+
+    // Override helper functions for embedded version (uses different CSS classes)
+    function highlightParty(partyName, partyColor) {
+        // Calculate a darker shade of the party's color
+        const darkerColor = d3.color(partyColor).darker(0.7);
+
+        // Dim all seats first (using .parliament-seat for embedded version)
+        chartGroup.selectAll(".parliament-seat").classed("dimmed", true);
+        
+        // Select all seats of the hovered party
+        const partySeats = chartGroup.selectAll(".parliament-seat").filter(p => p && p.name === partyName);
+        
+        // Un-dim them and apply the dynamic border style
+        partySeats
+            .classed("dimmed", false)
+            .style("stroke", darkerColor)
+            .style("stroke-width", "2px");
+            
+        // Highlight the party in the legend
+        d3.selectAll(".legend-item")
+            .style("opacity", 0.5);
+        d3.selectAll(".legend-item")
+            .filter(function(p) { 
+                // Find the legend item that matches the party name
+                const text = d3.select(this).select("span").text();
+                return text.startsWith(partyName);
+            })
+            .style("opacity", 1)
+            .style("font-weight", "bold");
+            
+        // Highlight the party in the table
+        d3.selectAll("#table-container table tbody tr")
+            .style("opacity", 0.5);
+        d3.selectAll("#table-container table tbody tr")
+            .filter(function() {
+                const partyNameCell = d3.select(this).select(".party-name span");
+                return partyNameCell.text() === partyName;
+            })
+            .style("opacity", 1)
+            .style("font-weight", "bold")
+            .style("background-color", "#f0f8ff");
+    }
+    
+    function resetHighlighting() {
+        // Reset all seats to their default state (using .parliament-seat for embedded version)
+        chartGroup.selectAll(".parliament-seat")
+            .classed("dimmed", false)
+            .style("stroke", "#fff") // Reset to default white border
+            .style("stroke-width", "1px"); // Reset to default border width
+            
+        // Reset legend highlighting
+        d3.selectAll(".legend-item")
+            .style("opacity", 1)
+            .style("font-weight", "normal");
+            
+        // Reset table highlighting
+        d3.selectAll("#table-container table tbody tr")
+            .style("opacity", 1)
+            .style("font-weight", "normal")
+            .style("background-color", "transparent");
+    }
 
     // Modified update function for embedded version
     function update(triggeringEvent = "manual") {
@@ -684,61 +778,9 @@
             update => update.transition().duration(state.animation_duration).attr("cx", (d, i) => positions[i].x).attr("cy", (d, i) => positions[i].y).attr("r", seatRadius - 0.5).attr("fill", d => d.color),
             exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
         ).on("mouseover", function(event, d) {
-            // Calculate a darker shade of the party's color
-            const darkerColor = d3.color(d.color).darker(0.7);
-
-            // Dim all seats first
-            chartGroup.selectAll(".parliament-seat").classed("dimmed", true);
-            
-            // Select all seats of the hovered party
-            const partySeats = chartGroup.selectAll(".parliament-seat").filter(p => p && p.name === d.name);
-            
-            // Un-dim them and apply the dynamic border style
-            partySeats
-                .classed("dimmed", false)
-                .style("stroke", darkerColor)
-                .style("stroke-width", "2px");
-            
-            // Highlight the party in the legend
-            d3.selectAll(".legend-item")
-                .style("opacity", 0.5);
-            d3.selectAll(".legend-item")
-                .filter(function(p) { 
-                    // Find the legend item that matches the party name
-                    const text = d3.select(this).select("span").text();
-                    return text.startsWith(d.name);
-                })
-                .style("opacity", 1)
-                .style("font-weight", "bold");
-                
-            // Highlight the party in the table
-            d3.selectAll("#table-container table tbody tr")
-                .style("opacity", 0.5);
-            d3.selectAll("#table-container table tbody tr")
-                .filter(function() {
-                    const partyNameCell = d3.select(this).select(".party-name span");
-                    return partyNameCell.text() === d.name;
-                })
-                .style("opacity", 1)
-                .style("font-weight", "bold")
-                .style("background-color", "#f0f8ff");
+            highlightParty(d.name, d.color);
         }).on("mouseout", function() {
-            // On mouse out, reset all seats to their default state
-            chartGroup.selectAll(".parliament-seat")
-                .classed("dimmed", false)
-                .style("stroke", "#fff") // Reset to default white border
-                .style("stroke-width", "1px"); // Reset to default border width
-                
-            // Reset legend highlighting
-            d3.selectAll(".legend-item")
-                .style("opacity", 1)
-                .style("font-weight", "normal");
-                
-            // Reset table highlighting
-            d3.selectAll("#table-container table tbody tr")
-                .style("opacity", 1)
-                .style("font-weight", "normal")
-                .style("background-color", "transparent");
+            resetHighlighting();
         });
         drawMajorityLine(positions, totalSeats, state);
         updateLegend(partiesForYear);
@@ -752,9 +794,17 @@
         if (!state.legend.enabled) return;
         legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
         parties.forEach(party => {
-            const item = legendContainer.append("div").attr("class", "legend-item");
+            const item = legendContainer.append("div").attr("class", "legend-item").style("cursor", "pointer");
             item.append("div").attr("class", "legend-swatch").style("width", "15px").style("height", "15px").style("background-color", party.color).style("border-radius", "3px");
             item.append("span").text(\`\${party.party} (\${party.seats})\`);
+            
+            // Add hover listeners to legend items
+            item.on("mouseover", function() {
+                highlightParty(party.party, party.color);
+            })
+            .on("mouseout", function() {
+                resetHighlighting();
+            });
         });
     }
 
@@ -769,7 +819,7 @@
         headerRow.append("th").text("Party");
         ELECTION_DATA.years.forEach(year => { headerRow.append("th").text(year); });
         ELECTION_DATA.parties.forEach(party => {
-            const row = tbody.append("tr");
+            const row = tbody.append("tr").style("cursor", "pointer");
             const nameCell = row.append("td").attr("class", "party-name");
             nameCell.append("div").attr("class", "color-swatch").style("background-color", PARTY_COLORS[party.party]);
             nameCell.append("span").text(party.party);
@@ -781,6 +831,14 @@
                         cell.append("span").attr("class", "seat-change").text(\`(\${change > 0 ? '+' : ''}\${change})\`).style("color", change > 0 ? "green" : "red");
                     }
                 }
+            });
+            
+            // Add hover listeners to table rows
+            row.on("mouseover", function() {
+                highlightParty(party.party, PARTY_COLORS[party.party]);
+            })
+            .on("mouseout", function() {
+                resetHighlighting();
             });
         });
     }
