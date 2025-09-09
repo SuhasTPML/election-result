@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parliament Chart from Google Sheets</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style id="chart-styles">
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; background-color: #f0f2f5; color: #333; margin: 0; height: 100vh; }
+        .container { display: flex; width: 100%; height: 100%; }
+        .settings-panel { width: 380px; padding: 20px; background-color: #fff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); overflow-y: auto; flex-shrink: 0; height: 100vh; box-sizing: border-box; }
+        .settings-panel h2 { margin-top: 0; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; }
+        .setting-group { margin-bottom: 25px; }
+        .setting-group h3 { margin-bottom: 10px; font-size: 1em; color: #555; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px;}
+        .setting-group label, .setting-group .label { display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; width: 100%; margin-bottom: 8px; }
+        .setting-group input[type="range"] { width: 60%; }
+        .setting-group input[type="number"], .setting-group input[type="color"], .setting-group input[type="text"] { padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
+        .setting-group input[type="checkbox"] { transform: scale(1.2); }
+        .hidden { display: none; }
+
+        .chart-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px; }
+        #parliament-svg-container { width: 100%; max-width: 900px; }
+        #table-container { width: 100%; max-width: 900px; margin-top: 10px; }
+        .parliament-seat { stroke: #fff; stroke-width: 1px; transition: opacity 0.3s ease, stroke 0.2s ease, stroke-width 0.2s ease; }
+        .parliament-seat.dimmed { opacity: 0.2; }
+        .controls { width: 100%; max-width: 900px; text-align: left; margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px;}
+        .controls button { padding: 8px 16px; margin: 0; font-size: 16px; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; transition: background-color 0.2s, color 0.2s; flex: 0 0 auto; }
+        .controls button.active { background-color: #333; color: #fff; border-color: #333; }
+        table { width: 100%; border-collapse: collapse; background-color: #fff; border: 1px solid #e0e0e0; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e0e0e0; font-size: 0.9em;}
+        th { background-color: #f8f8f8; font-weight: 600; }
+        .party-name { display: flex; align-items: center; }
+        .color-swatch { width: 15px; height: 15px; border-radius: 3px; margin-right: 10px; display: inline-block; flex-shrink: 0; }
+        .seat-change { font-size: 0.9em; margin-left: 8px; font-weight: bold;}
+        .legend { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; font-size: 0.8em; margin-top: 10px;}
+        .legend-item { display: flex; align-items: center; transition: opacity 0.2s, font-weight 0.2s; }
+        .legend-swatch { margin-right: 5px; flex-shrink: 0; }
+        #table-container tbody tr { transition: opacity 0.2s, background-color 0.2s; }
+        #error-message { color: #c52626; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="settings-panel">
+        <h2>Settings</h2>
+        <div class="setting-group">
+            <h3>Parliament Layout</h3>
+            <label><span>Arc Size (degrees)</span><span id="arc-size-value">180</span></label>
+            <input type="range" id="arc-size" min="90" max="360" value="180">
+            <label><span>Inner Radius (%)</span><span id="inner-radius-value">30</span></label>
+            <input type="range" id="inner-radius" min="0" max="90" value="30">
+        </div>
+        <div class="setting-group">
+            <h3>Seat Size</h3>
+            <label><input type="radio" name="seat-size-mode" value="auto" checked> Auto (No Overlap)</label>
+            <label><input type="radio" name="seat-size-mode" value="fixed"> Fixed</label>
+            <div id="fixed-seat-size-container" class="hidden">
+                <label><span>Radius (px)</span><input type="number" id="fixed-seat-radius" value="8" min="1" max="50"></label>
+            </div>
+        </div>
+        <div class="setting-group">
+            <h3>Majority Line</h3>
+            <label><span>Show Line</span><input type="checkbox" id="majority-line-enabled"></label>
+            <div id="majority-line-options" class="hidden">
+                <label><span>Label Text</span><input type="text" id="majority-line-label" value="Majority"></label>
+                <label><span>Position (%)</span><input type="number" id="majority-line-position" value="50" min="1" max="100"></label>
+                <label><span>Line Color</span><input type="color" id="majority-line-color" value="#000000"></label>
+                <label><span>Thickness (px)</span><input type="number" id="majority-line-width" value="1.5" min="0.5" step="0.5">
+            </div>
+        </div>
+        <div class="setting-group">
+            <h3>Legend</h3>
+             <label><span>Show Legend</span><input type="checkbox" id="legend-enabled" checked></label>
+             <div id="legend-options">
+                 <label><span>Orientation</span></label>
+                 <div>
+                     <label><input type="radio" name="legend-orientation" value="horizontal" checked> Horizontal</label>
+                     <label><input type="radio" name="legend-orientation" value="vertical"> Vertical</label>
+                 </div>
+             </div>
+        </div>
+        <div class="setting-group">
+            <h3>Export</h3>
+            <button id="export-html" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 6px; font-size: 16px;">Export Embeddable HTML</button>
+        </div>
+    </div>
+    <div class="chart-container">
+        <h1 id="chart-title">Parliament Chart</h1>
+        <div id="error-message"></div>
+        <div id="controls" class="controls"></div>
+        <div id="parliament-svg-container"><svg id="parliament-chart"></svg></div>
+        <div id="legend-container" class="legend"></div>
+        <div id="table-container"></div>
+    </div>
+</div>
+
+<div id="export-modal" style="display: none; position: fixed; z-index: 1000; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center;">
+  <div style="background: white; padding: 20px; border-radius: 8px; width: 80%; max-width: 800px; height: 80%; display: flex; flex-direction: column; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
+        <h3 style="margin: 0;">Embeddable HTML Code</h3>
+        <button id="close-modal" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+    </div>
+    <textarea id="exported-code" readonly style="width: 100%; flex-grow: 1; font-family: monospace; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; resize: none;"></textarea>
+    <button id="copy-code" style="margin-top: 10px; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Copy to Clipboard</button>
+  </div>
+</div>
+
+
+<script>
+    // --- CONFIGURATION ---
+    const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQXSEsMSFHFs8m-am9KqP5nSC86IS0sd9Jh0A4akYIKH9-_uxE8amGd5uIQOqPnSSGN5wKC0QTnkmJG/pub?gid=0&single=true&output=csv'; 
+    const CHART_TITLE = "Election Results"; 
+
+    // --- GLOBAL VARIABLES ---
+    let ELECTION_DATA = { years: [], parties: [] };
+    let PARTY_COLORS = {};
+    let state = {
+        current_election_index: 0, arc_degrees: 180, inner_radius_ratio: 0.3, seat_size_mode: 'auto',
+        fixed_seat_radius: 8, majority_line: { enabled: false, label: "Majority", position: 50, color: "#000000", width: 1.5 },
+        legend: { enabled: true, orientation: 'horizontal' }, animation_duration: 800
+    };
+
+    const svg = d3.select("#parliament-chart");
+    const chartGroup = svg.append("g");
+    const majorityLineGroup = svg.append("g").attr("class", "majority-line-group");
+
+    async function loadDataAndInitialize() {
+        if (!GOOGLE_SHEET_URL || GOOGLE_SHEET_URL === 'PASTE_YOUR_URL_HERE') {
+            document.getElementById('error-message').textContent = 'Error: Please paste your Google Sheet URL into the GOOGLE_SHEET_URL constant in the script.';
+            return;
+        }
+        // FIX: The 'try' block now correctly wraps the entire function body that can throw an error.
+        try {
+            const rawData = await d3.csv(GOOGLE_SHEET_URL);
+            
+            // --- DEBUGGING LINES ---
+            console.log("DEBUG: Parsed CSV Columns:", rawData.columns);
+            console.log("DEBUG: First row of data:", rawData[0]);
+            // ------------------------
+
+            if (rawData.length === 0) throw new Error("Sheet is empty or not in the correct format.");
+            
+            const headers = rawData.columns;
+            const yearHeaders = headers.filter(h => h.toLowerCase() !== 'party' && h.toLowerCase() !== 'color');
+            const years = [...new Set(yearHeaders.map(h => h.split('_')[0]))].sort();
+            
+            ELECTION_DATA.years = years;
+            ELECTION_DATA.parties = [];
+            
+            rawData.forEach(row => {
+                const partyName = row.Party || row.party;
+                const partyColor = row.Color || row.color;
+
+                if (!partyName || !partyColor) return;
+
+                PARTY_COLORS[partyName] = partyColor.trim();
+                const partyData = { party: partyName, yearly_results: [] };
+                
+                years.forEach(year => {
+                    partyData.yearly_results.push({
+                        year: year,
+                        seats: parseInt(row[`${year}_Seats`] || 0, 10),
+                        leads: parseInt(row[`${year}_Leads`] || 0, 10)
+                    });
+                });
+                ELECTION_DATA.parties.push(partyData);
+            });
+
+            if (ELECTION_DATA.parties.length === 0) {
+                 throw new Error("No valid party data found. Check your sheet for 'Party' and 'Color' columns.");
+            }
+
+            state.current_election_index = ELECTION_DATA.years.length - 1;
+
+            document.getElementById('chart-title').textContent = CHART_TITLE;
+            updateControls();
+            update();
+
+        } catch (error) {
+            console.error("Failed to load or parse data:", error);
+            document.getElementById('error-message').textContent = `Error: Could not load data. Please check the URL, ensure headers use underscores (e.g., 2024_Seats), and that the sheet is published. Details: ${error.message}`;
+        }
+    }
+
+    // --- CORE CHART LOGIC (REMAINS UNCHANGED, BUT PROVIDED FOR COMPLETENESS) ---
+    function getLayoutCapacity(seatRadius, chartHeight, innerRadiusRatio, arcDegrees) {
+        if (seatRadius < 0.5) return 0;
+        const spacing = seatRadius * 0.15;
+        const footprint = (seatRadius * 2) + spacing;
+        const arcRadians = arcDegrees * Math.PI / 180;
+        let capacity = 0;
+        let rowRadius = chartHeight - seatRadius;
+        while (rowRadius > chartHeight * innerRadiusRatio) {
+            const circumference = rowRadius * arcRadians;
+            capacity += Math.floor(circumference / footprint);
+            rowRadius -= footprint;
+        }
+        return capacity;
+    }
+    
+    function calculateLayout(totalSeats, chartHeight, config) {
+        if (totalSeats === 0) return { positions: [], seatRadius: 0 };
+        let seatRadius = config.fixed_seat_radius;
+        if (config.seat_size_mode === 'auto') {
+            let lowerBound = 0.1, upperBound = 50, bestRadius = 1;
+            for (let i = 0; i < 30; i++) {
+                let mid = (lowerBound + upperBound) / 2;
+                if (getLayoutCapacity(mid, chartHeight, config.inner_radius_ratio, config.arc_degrees) >= totalSeats) {
+                    bestRadius = mid;
+                    lowerBound = mid;
+                } else { upperBound = mid; }
+            }
+            seatRadius = bestRadius;
+        }
+        const spacing = seatRadius * 0.15;
+        const footprint = (seatRadius * 2) + spacing;
+        const arcRadians = config.arc_degrees * Math.PI / 180;
+        let rows = [];
+        let rowRadius = chartHeight - seatRadius;
+        while (rowRadius > chartHeight * config.inner_radius_ratio) {
+            const circumference = rowRadius * arcRadians;
+            const capacity = Math.floor(circumference / footprint);
+            if (capacity <=0) break;
+            rows.push({ radius: rowRadius, capacity: capacity });
+            rowRadius -= footprint;
+        }
+        let totalArcLength = 0;
+        rows.forEach(r => { totalArcLength += r.radius * arcRadians; });
+        const seatsPerRow = [];
+        let seatsAssigned = 0;
+        for (let i = 0; i < rows.length; i++) {
+            let seatsInRow = (i < rows.length -1) ? (totalArcLength > 0 ? Math.round((arcRadians * rows[i].radius * totalSeats) / totalArcLength) : 0) : (totalSeats - seatsAssigned);
+            seatsPerRow.push(Math.min(rows[i].capacity, seatsInRow));
+            seatsAssigned += seatsInRow;
+        }
+        let seatDifference = totalSeats - seatsPerRow.reduce((a,b) => a+b, 0);
+        for(let i=0; i < Math.abs(seatDifference); i++) { seatsPerRow[i % seatsPerRow.length] += Math.sign(seatDifference); }
+        const positions = [];
+        const startAngle = (Math.PI - arcRadians) / 2;
+        for(let i=0; i<rows.length; i++) {
+            const radius = rows[i].radius;
+            const numSeatsInRow = seatsPerRow[i];
+            const angleStep = numSeatsInRow > 1 ? arcRadians / (numSeatsInRow - 1 || 1) : 0;
+            for (let j = 0; j < numSeatsInRow; j++) {
+                const angle = Math.PI - startAngle - (j * angleStep);
+                positions.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * -radius, angle, radius });
+            }
+        }
+        positions.sort((a, b) => b.angle - a.angle);
+        return { positions: positions.slice(0, totalSeats), seatRadius };
+    }
+    
+    function drawMajorityLine(positions, totalSeats, config) {
+        majorityLineGroup.html("");
+        if (!config.majority_line.enabled || totalSeats < 2) return;
+        const positionRatio = config.majority_line.position / 100;
+        const targetIndex = Math.max(0, Math.min(totalSeats - 1, Math.floor(totalSeats * positionRatio)));
+        let targetAngle;
+        if (targetIndex === 0) {
+            targetAngle = positions[0].angle;
+        } else if (targetIndex >= positions.length - 1) {
+            targetAngle = positions[positions.length - 1].angle;
+        } else {
+            const lowerIndex = Math.floor(totalSeats * positionRatio);
+            const upperIndex = Math.min(lowerIndex + 1, positions.length - 1);
+            const ratio = (totalSeats * positionRatio) - lowerIndex;
+            targetAngle = positions[lowerIndex].angle * (1 - ratio) + positions[upperIndex].angle * ratio;
+        }
+        const outerRadius = Math.max(...positions.map(p => p.radius));
+        const innerRadius = Math.min(...positions.map(p => p.radius));
+        const extension = 35; 
+        const innerExtension = 25;
+        const x1 = Math.cos(targetAngle) * (innerRadius - innerExtension);
+        const y1 = Math.sin(targetAngle) * -(innerRadius - innerExtension);
+        const x2 = Math.cos(targetAngle) * (outerRadius + extension);
+        const y2 = Math.sin(targetAngle) * -(outerRadius + extension);
+        majorityLineGroup.append("line").attr("x1", x1).attr("y1", y1).attr("x2", x2).attr("y2", y2).attr("stroke", config.majority_line.color).attr("stroke-width", config.majority_line.width + 2).attr("stroke-dasharray", "6,6");
+        const textX = Math.cos(targetAngle) * (outerRadius + 55);
+        const textY = Math.sin(targetAngle) * -(outerRadius + 55);
+        majorityLineGroup.append("text").attr("x", textX).attr("y", textY).attr("dy", "0.35em").attr("text-anchor", "middle").style("font-size", "14px").style("font-weight", "bold").style("fill", config.majority_line.color).text(config.majority_line.label);
+    }
+
+    function highlightParty(partyName, partyColor) {
+        const darkerColor = d3.color(partyColor).darker(0.7);
+        chartGroup.selectAll(".parliament-seat").classed("dimmed", true);
+        const partySeats = chartGroup.selectAll(".parliament-seat").filter(p => p && p.name === partyName);
+        partySeats.classed("dimmed", false).style("stroke", darkerColor).style("stroke-width", "2px");
+        d3.selectAll(".legend-item").style("opacity", 0.3);
+        d3.selectAll(".legend-item").filter(d => d.party === partyName).style("opacity", 1).style("font-weight", "bold");
+        d3.selectAll("#table-container tbody tr").style("opacity", 0.3);
+        d3.selectAll("#table-container tbody tr").filter((d, i, nodes) => d3.select(nodes[i]).datum().party === partyName).style("opacity", 1).style("background-color", "#f0f8ff");
+    }
+    
+    function resetHighlighting() {
+        chartGroup.selectAll(".parliament-seat").classed("dimmed", false)
+            .style("stroke", d => d.type === 'lead' ? d.color : "#fff")
+            .style("stroke-width", d => d.type === 'lead' ? 2 : 1);
+        d3.selectAll(".legend-item").style("opacity", 1).style("font-weight", "normal");
+        d3.selectAll("#table-container tbody tr").style("opacity", 1).style("background-color", "transparent");
+    }
+    
+    function update(triggeringEvent = "manual") {
+        const currentYear = ELECTION_DATA.years[state.current_election_index];
+        const partiesForYear = ELECTION_DATA.parties.map(p => {
+            const yearData = p.yearly_results.find(yr => yr.year === currentYear);
+            return { party: p.party, color: PARTY_COLORS[p.party], seats: yearData ? yearData.seats : 0, leads: yearData ? yearData.leads : 0 };
+        }).filter(p => p.seats > 0 || p.leads > 0);
+
+        const currentYearData = [];
+        partiesForYear.forEach(party => {
+            for (let i = 0; i < party.seats; i++) { currentYearData.push({ name: party.party, color: party.color, type: 'seat' }); }
+            for (let i = 0; i < party.leads; i++) { currentYearData.push({ name: party.party, color: party.color, type: 'lead' }); }
+        });
+        
+        const totalSeats = currentYearData.length;
+        const container = d3.select("#parliament-svg-container");
+        if (!container.node()) return;
+        const width = container.node().getBoundingClientRect().width;
+        const baseHeight = width / 2 * (state.arc_degrees > 180 ? 2 : 1);
+        const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, state);
+        svg.attr("width", "100%").attr("height", "100%");
+        const padding = 30, textPadding = 10;
+        let minX = 0, maxX = 0, minY = 0, maxY = 0;
+        if (positions.length > 0) {
+            const xPositions = positions.map(p => p.x);
+            const yPositions = positions.map(p => p.y);
+            minX = Math.min(...xPositions) - seatRadius - padding;
+            maxX = Math.max(...xPositions) + seatRadius + padding;
+            minY = Math.min(...yPositions) - seatRadius - padding - textPadding;
+            maxY = Math.max(...yPositions) + seatRadius + padding;
+        } else { minX = -width/2; maxX = width/2; minY = -baseHeight/2 - textPadding; maxY = baseHeight/2; }
+        const viewBoxWidth = maxX - minX;
+        const viewBoxHeight = maxY - minY;
+        svg.attr("viewBox", `${minX} ${minY} ${viewBoxWidth} ${viewBoxHeight}`).attr("preserveAspectRatio", "xMidYMid meet");
+        chartGroup.attr("transform", "translate(0,0)");
+        majorityLineGroup.attr("transform", "translate(0,0)");
+        
+        chartGroup.selectAll(".parliament-seat").data(currentYearData, (d, i) => `${d.name}-${d.type}-${i}`).join(
+            enter => enter.append("circle").attr("class", "parliament-seat").attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0)
+                .call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius - 0.5)),
+            update => update.transition().duration(state.animation_duration).attr("cx", (d, i) => positions[i].x).attr("cy", (d, i) => positions[i].y).attr("r", seatRadius - 0.5),
+            exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
+        )
+        .style("cursor", "pointer")
+        .attr("fill", d => d.type === 'seat' ? d.color : 'none')
+        .attr("stroke", d => d.type === 'lead' ? d.color : '#fff')
+        .attr("stroke-width", d => d.type === 'lead' ? 2 : 1)
+        .attr("stroke-dasharray", d => d.type === 'lead' ? "3 2" : "none")
+        .on("mouseover", (event, d) => highlightParty(d.name, d.color))
+        .on("mouseout", resetHighlighting);
+        
+        drawMajorityLine(positions, totalSeats, state);
+        updateLegend(partiesForYear);
+        updateTable();
+        updateControls();
+    }
+    
+    function updateLegend(parties) {
+        const legendContainer = d3.select("#legend-container");
+        legendContainer.html("").style("display", state.legend.enabled ? "flex" : "none");
+        if (!state.legend.enabled) return;
+        legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
+        
+        legendContainer.selectAll(".legend-item").data(parties, d => d.party).join("div")
+            .attr("class", "legend-item").style("cursor", "pointer")
+            .html(d => {
+                let label = `${d.party} (${d.seats}`;
+                if (d.leads > 0) label += ` + ${d.leads} leads`;
+                label += ')';
+                return `<div class="legend-swatch" style="width: 15px; height: 15px; background-color: ${d.color}; border-radius: 3px;"></div><span>${label}</span>`;
+            })
+            .on("mouseover", (event, d) => highlightParty(d.party, d.color))
+            .on("mouseout", resetHighlighting);
+    }
+
+    function updateTable() {
+        const tableContainer = d3.select("#table-container");
+        tableContainer.html("");
+        if (ELECTION_DATA.parties.length === 0) return;
+        const table = tableContainer.append("table");
+        table.append("thead").append("tr").selectAll("th")
+            .data(["Party", ...ELECTION_DATA.years]).join("th").text(d => d);
+        
+        const rows = table.append("tbody").selectAll("tr").data(ELECTION_DATA.parties).join("tr")
+            .style("cursor", "pointer")
+            .on("mouseover", (event, d) => highlightParty(d.party, PARTY_COLORS[d.party]))
+            .on("mouseout", resetHighlighting);
+
+        rows.each(function(partyData) {
+            const row = d3.select(this);
+            const nameCell = row.append("td").attr("class", "party-name");
+            nameCell.append("div").attr("class", "color-swatch").style("background-color", PARTY_COLORS[partyData.party]);
+            nameCell.append("span").text(partyData.party);
+
+            partyData.yearly_results.forEach((result, i) => {
+                let cellContent = result.seats;
+                if (result.leads > 0) cellContent += ` (+${result.leads})`;
+                const cell = row.append("td").text(cellContent);
+
+                if (i > 0) {
+                    const prevResult = partyData.yearly_results[i-1];
+                    const change = result.seats - prevResult.seats;
+                    if (change !== 0) {
+                        cell.append("span").attr("class", "seat-change").text(`(${change > 0 ? '+' : ''}${change})`).style("color", change > 0 ? "green" : "red");
+                    }
+                }
+            });
+        });
+    }
+
+    function updateControls() {
+        const controls = d3.select("#controls");
+        controls.html("");
+        ELECTION_DATA.years.forEach((year, i) => {
+            const button = controls.append("button").text(year).classed("active", i === state.current_election_index);
+            button.on("click", () => { state.current_election_index = i; update(); });
+        });
+    }
+    
+    function setupEventListeners() {
+        document.getElementById('arc-size').addEventListener('input', e => { state.arc_degrees = +e.target.value; document.getElementById('arc-size-value').textContent = e.target.value; update(); });
+        document.getElementById('inner-radius').addEventListener('input', e => { state.inner_radius_ratio = +e.target.value / 100; document.getElementById('inner-radius-value').textContent = e.target.value; update(); });
+        document.querySelectorAll('input[name="seat-size-mode"]').forEach(r => r.addEventListener('change', e => { state.seat_size_mode = e.target.value; document.getElementById('fixed-seat-size-container').classList.toggle('hidden', e.target.value === 'auto'); update(); }));
+        document.getElementById('fixed-seat-radius').addEventListener('input', e => { state.fixed_seat_radius = +e.target.value; update(); });
+        document.getElementById('majority-line-enabled').addEventListener('change', e => { state.majority_line.enabled = e.target.checked; document.getElementById('majority-line-options').classList.toggle('hidden', !e.target.checked); update(); });
+        document.getElementById('majority-line-label').addEventListener('input', e => { state.majority_line.label = e.target.value; update(); });
+        document.getElementById('majority-line-position').addEventListener('input', e => { state.majority_line.position = +e.target.value; update(); });
+        document.getElementById('majority-line-color').addEventListener('input', e => { state.majority_line.color = e.target.value; update(); });
+        document.getElementById('majority-line-width').addEventListener('input', e => { state.majority_line.width = +e.target.value; update(); });
+        document.getElementById('legend-enabled').addEventListener('change', e => { state.legend.enabled = e.target.checked; document.getElementById('legend-options').classList.toggle('hidden', !e.target.checked); update(); });
+        document.querySelectorAll('input[name="legend-orientation"]').forEach(r => r.addEventListener('change', e => { state.legend.orientation = e.target.value; update(); }));
+        window.addEventListener('resize', () => update("resize"));
+        document.getElementById('export-html').addEventListener('click', generateEmbeddableHTML);
+        document.getElementById('close-modal').addEventListener('click', () => { document.getElementById('export-modal').style.display = 'none'; });
+        document.getElementById('copy-code').addEventListener('click', () => {
+            document.getElementById('exported-code').select();
+            navigator.clipboard.writeText(document.getElementById('exported-code').value).then(() => alert('Copied to clipboard!')).catch(err => console.error('Failed to copy: ', err));
+        });
+    }
+
+    function generateEmbeddableHTML() {
+        const functionsToEmbed = [
+            loadDataAndInitialize, getLayoutCapacity, calculateLayout, drawMajorityLine, 
+            highlightParty, resetHighlighting, update, 
+            updateLegend, updateTable, updateControls
+        ].map(fn => fn.toString()).join('\n\n');
+
+        const styles = `
+        body { margin: 0; }
+        .parliament-chart-wrapper { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; max-width: 900px; margin: auto; }
+        .parliament-chart-wrapper h1 { text-align: center; font-size: 1.5em; margin: 10px 0; }
+        .parliament-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-bottom: 10px; }
+        .parliament-controls button { padding: 8px 12px; font-size: 1em; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; }
+        .parliament-controls button.active { background-color: #333; color: #fff; }
+        .parliament-seat { stroke: #fff; stroke-width: 1px; transition: opacity 0.3s ease, stroke 0.2s ease, stroke-width 0.2s ease; cursor: pointer; }
+        .parliament-seat.dimmed { opacity: 0.2; }
+        .parliament-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; font-size: 0.8em; margin-top: 10px; }
+        .legend-item { display: flex; align-items: center; cursor: pointer; transition: opacity 0.2s; }
+        .legend-swatch { width: 15px; height: 15px; border-radius: 3px; margin-right: 5px; }
+        .parliament-table-container { margin-top: 10px; }
+        .parliament-table-container table { width: 100%; border-collapse: collapse; }
+        .parliament-table-container th, .parliament-table-container td { padding: 8px; text-align: left; border-bottom: 1px solid #e0e0e0; font-size: 0.9em; }
+        .parliament-table-container th { background-color: #f8f8f8; }
+        .parliament-table-container tbody tr { transition: opacity 0.2s, background-color 0.2s; cursor: pointer; }
+        .color-swatch { width: 15px; height: 15px; border-radius: 3px; margin-right: 10px; display: inline-block; flex-shrink: 0; }
+        .seat-change { font-size: 0.9em; margin-left: 8px; font-weight: bold; }
+        #error-message { color: #c52626; font-weight: bold; }
+        `;
+
+        const htmlTemplate = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parliament Chart</title>
+    <script src="https://d3js.org/d3.v7.min.js"><\/script>
+    <style>${styles}<\/style>
+</head>
+<body>
+<div class="parliament-chart-wrapper">
+    <h1 id="chart-title"></h1>
+    <div id="error-message"></div>
+    <div id="controls" class="parliament-controls"></div>
+    <div id="parliament-svg-container"><svg id="parliament-chart"></svg></div>
+    <div id="legend-container" class="parliament-legend"></div>
+    <div id="table-container" class="parliament-table-container"></div>
+</div>
+<script>
+    const GOOGLE_SHEET_URL = ${JSON.stringify(GOOGLE_SHEET_URL)};
+    const CHART_TITLE = ${JSON.stringify(CHART_TITLE)};
+    let ELECTION_DATA = { years: [], parties: [] };
+    let PARTY_COLORS = {};
+    let state = ${JSON.stringify(state)};
+    state.animation_duration = 0; // Disable animations for embeds
+
+    const svg = d3.select("#parliament-chart");
+    const chartGroup = svg.append("g");
+    const majorityLineGroup = svg.append("g").attr("class", "majority-line-group");
+
+    ${functionsToEmbed}
+
+    // --- INITIALIZE EMBED ---
+    loadDataAndInitialize();
+    window.addEventListener('resize', () => update("resize"));
+<\/script>
+</body>
+</html>`;
+        
+        document.getElementById('exported-code').value = htmlTemplate.replace(/^\s*\n/gm, '');
+        document.getElementById('export-modal').style.display = 'flex';
+    }
+
+    // --- INITIALIZE GENERATOR ---
+    function initializeGenerator() {
+        setupEventListeners();
+        loadDataAndInitialize();
+    }
+    initializeGenerator();
+
+</script>
+</body>
+</html>
