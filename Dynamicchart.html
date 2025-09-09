@@ -343,10 +343,10 @@
             exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
         )
         .style("cursor", "pointer")
-        .attr("fill", d => d.type === 'seat' ? d.color : 'none')
-        .attr("stroke", d => d.type === 'lead' ? d.color : '#fff')
-        .attr("stroke-width", d => d.type === 'lead' ? 2 : 1)
-        .attr("stroke-dasharray", d => d.type === 'lead' ? "3 2" : "none")
+        .attr("fill", d => d.type === 'seat' ? d.color : 'transparent')
+        .style("stroke", d => d.type === 'lead' ? d.color : '#fff')
+        .style("stroke-width", d => d.type === 'lead' ? 2 : 1)
+        .style("stroke-dasharray", d => d.type === 'lead' ? "3 2" : "none")
         .on("mouseover", (event, d) => highlightParty(d.name, d.color))
         .on("mouseout", resetHighlighting);
         
