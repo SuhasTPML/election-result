@@ -37,6 +37,14 @@
         .legend-swatch { margin-right: 5px; flex-shrink: 0; }
         #table-container tbody tr { transition: opacity 0.2s, background-color 0.2s; }
         #error-message { color: #c52626; font-weight: bold; }
+        
+        /* Mobile-specific styles */
+        @media (max-width: 768px) {
+            .settings-panel { width: 100%; height: auto; position: fixed; top: 0; left: 0; z-index: 1000; transform: translateX(-100%); transition: transform 0.3s ease; }
+            .settings-panel.mobile-open { transform: translateX(0); }
+            .container { flex-direction: column; }
+            .chart-container { padding: 5px; }
+        }
     </style>
 </head>
 <body>
@@ -283,9 +291,13 @@
 
     function highlightParty(partyName, partyColor) {
         const darkerColor = d3.color(partyColor).darker(0.7);
+        const lighterColor = d3.color(partyColor).brighter(1.5).copy({opacity: 0.3});
         chartGroup.selectAll(".parliament-seat").classed("dimmed", true);
         const partySeats = chartGroup.selectAll(".parliament-seat").filter(p => p && p.name === partyName);
-        partySeats.classed("dimmed", false).style("stroke", darkerColor).style("stroke-width", "2px");
+        partySeats.classed("dimmed", false)
+            .style("stroke", darkerColor)
+            .style("stroke-width", "2px")
+            .style("fill", d => d.type === 'lead' ? lighterColor : d.color);
         d3.selectAll(".legend-item").style("opacity", 0.3);
         d3.selectAll(".legend-item").filter(d => d.party === partyName).style("opacity", 1).style("font-weight", "bold");
         d3.selectAll("#table-container tbody tr").style("opacity", 0.3);
@@ -295,7 +307,8 @@
     function resetHighlighting() {
         chartGroup.selectAll(".parliament-seat").classed("dimmed", false)
             .style("stroke", d => d.type === 'lead' ? d.color : "#fff")
-            .style("stroke-width", d => d.type === 'lead' ? 2 : 1);
+            .style("stroke-width", d => d.type === 'lead' ? 1 : 1)
+            .style("fill", d => d.type === 'seat' ? d.color : 'transparent');
         d3.selectAll(".legend-item").style("opacity", 1).style("font-weight", "normal");
         d3.selectAll("#table-container tbody tr").style("opacity", 1).style("background-color", "transparent");
     }
@@ -336,19 +349,33 @@
         chartGroup.attr("transform", "translate(0,0)");
         majorityLineGroup.attr("transform", "translate(0,0)");
         
+        // Add invisible hit areas first (larger circles for better hover zones)
+        chartGroup.selectAll(".seat-hit-area").data(currentYearData, (d, i) => `${d.name}-${d.type}-hit-${i}`).join(
+            enter => enter.append("circle").attr("class", "seat-hit-area").attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0)
+                .call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius + 3)),
+            update => update.transition().duration(state.animation_duration).attr("cx", (d, i) => positions[i].x).attr("cy", (d, i) => positions[i].y).attr("r", seatRadius + 3),
+            exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
+        )
+        .attr("fill", "transparent")
+        .attr("stroke", "none")
+        .style("pointer-events", "all")
+        .style("cursor", "pointer")
+        .on("mouseover", (event, d) => highlightParty(d.name, d.color))
+        .on("mouseout", resetHighlighting);
+
+        // Add visible seats on top
         chartGroup.selectAll(".parliament-seat").data(currentYearData, (d, i) => `${d.name}-${d.type}-${i}`).join(
             enter => enter.append("circle").attr("class", "parliament-seat").attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0)
                 .call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius - 0.5)),
             update => update.transition().duration(state.animation_duration).attr("cx", (d, i) => positions[i].x).attr("cy", (d, i) => positions[i].y).attr("r", seatRadius - 0.5),
             exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
         )
-        .style("cursor", "pointer")
         .attr("fill", d => d.type === 'seat' ? d.color : 'transparent')
         .style("stroke", d => d.type === 'lead' ? d.color : '#fff')
-        .style("stroke-width", d => d.type === 'lead' ? 2 : 1)
+        .style("stroke-width", d => d.type === 'lead' ? 1 : 1)
         .style("stroke-dasharray", d => d.type === 'lead' ? "3 2" : "none")
-        .on("mouseover", (event, d) => highlightParty(d.name, d.color))
-        .on("mouseout", resetHighlighting);
+        .style("pointer-events", "none")
+        .style("cursor", "pointer");
         
         drawMajorityLine(positions, totalSeats, state);
         updateLegend(partiesForYear);
@@ -466,6 +493,9 @@
         .color-swatch { width: 15px; height: 15px; border-radius: 3px; margin-right: 10px; display: inline-block; flex-shrink: 0; }
         .seat-change { font-size: 0.9em; margin-left: 8px; font-weight: bold; }
         #error-message { color: #c52626; font-weight: bold; }
+        @media (max-width: 768px) {
+            .parliament-chart-wrapper { padding: 5px; }
+        }
         `;
 
         const htmlTemplate = `
