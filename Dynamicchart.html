@@ -350,7 +350,7 @@
     function resetHighlighting() {
         chartGroup.selectAll(".parliament-seat").classed("dimmed", false)
             .style("stroke", d => d.type === 'lead' ? d.color : "#fff")
-            .style("stroke-width", d => d.type === 'lead' ? 1 : 1)
+            .style("stroke-width", d => d.type === 'lead' ? 2 : 1)
             .style("fill", d => d.type === 'seat' ? d.color : 'transparent');
         d3.selectAll(".legend-item").style("opacity", 1).style("font-weight", "normal");
         d3.selectAll("#table-container tbody tr").style("opacity", 1).style("background-color", "transparent");
@@ -431,7 +431,7 @@
         )
         .attr("fill", d => d.type === 'seat' ? d.color : 'transparent')
         .style("stroke", d => d.type === 'lead' ? d.color : '#fff')
-        .style("stroke-width", d => d.type === 'lead' ? 1 : 1)
+        .style("stroke-width", d => d.type === 'lead' ? 2 : 1)
         .style("stroke-dasharray", "none")
         .style("pointer-events", "none")
         .style("cursor", "pointer");

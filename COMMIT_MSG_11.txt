@@ -1,0 +1,1 @@
+style(dynamic): set non-hover leads stroke-width to 2px to match hover
