@@ -1,0 +1,1 @@
+feat: center-only total seats number in live and embedded charts
