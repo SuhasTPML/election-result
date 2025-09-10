@@ -266,38 +266,31 @@
 
         // Dim all seats first
         chartGroup.selectAll(".seat").classed("dimmed", true);
-        
+
         // Select all seats of the hovered party
         const partySeats = chartGroup.selectAll(".seat").filter(p => p && p.name === partyName);
-        
+
         // Un-dim them and apply the dynamic border style
         partySeats
             .classed("dimmed", false)
             .style("stroke", darkerColor)
             .style("stroke-width", "2px");
-            
-        // Highlight the party in the legend
+
+        // Highlight the party in the legend (match by bound data)
         d3.selectAll(".legend-item")
-            .style("opacity", 0.5);
+            .style("opacity", 0.3);
         d3.selectAll(".legend-item")
-            .filter(function(p) { 
-                // Find the legend item that matches the party name
-                const text = d3.select(this).select("span").text();
-                return text.startsWith(partyName);
-            })
+            .filter(function(d) { return d && d.party === partyName; })
             .style("opacity", 1)
             .style("font-weight", "bold");
-            
-        // Highlight the party in the table
+
+        // Highlight the party in the table (match by bound data)
         d3.selectAll("#table-container table tbody tr")
-            .style("opacity", 0.5);
+            .style("opacity", 0.3)
+            .style("background-color", "transparent");
         d3.selectAll("#table-container table tbody tr")
-            .filter(function() {
-                const partyNameCell = d3.select(this).select(".party-name span");
-                return partyNameCell.text() === partyName;
-            })
+            .filter(function(d) { return d && d.party === partyName; })
             .style("opacity", 1)
-            .style("font-weight", "bold")
             .style("background-color", "#f0f8ff");
     }
     
@@ -305,14 +298,14 @@
         // Reset all seats to their default state
         chartGroup.selectAll(".seat")
             .classed("dimmed", false)
-            .style("stroke", "#fff") // Reset to default white border
-            .style("stroke-width", "1px"); // Reset to default border width
-            
+            .style("stroke", "#fff")
+            .style("stroke-width", "1px");
+
         // Reset legend highlighting
         d3.selectAll(".legend-item")
             .style("opacity", 1)
             .style("font-weight", "normal");
-            
+
         // Reset table highlighting
         d3.selectAll("#table-container table tbody tr")
             .style("opacity", 1)
@@ -373,18 +366,30 @@
                 .text(totalSeats);
         }
         labelsGroup.attr("transform", "translate(0,0)");
-        if (totalSeats === 0) { chartGroup.selectAll(".seat").remove(); majorityLineGroup.html(""); }
+        if (totalSeats === 0) { chartGroup.selectAll(".seat, .seat-hit-area").remove(); majorityLineGroup.html(""); }
+
+        // Invisible hit areas for better hover (slightly larger than seats)
+        chartGroup.selectAll(".seat-hit-area").data(currentYearData, (d, i) => `${d.name}-${state.current_election_index}-hit-${i}`).join(
+            enter => enter.append("circle").attr("class", "seat-hit-area").attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0)
+                .call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius + 3)),
+            update => update.transition().duration(state.animation_duration).attr("cx", (d, i) => positions[i].x).attr("cy", (d, i) => positions[i].y).attr("r", seatRadius + 3),
+            exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
+        )
+        .attr("fill", "transparent")
+        .attr("stroke", "none")
+        .style("pointer-events", "all")
+        .style("cursor", "pointer")
+        .on("mouseover", (event, d) => highlightParty(d.name, d.color))
+        .on("mouseout", resetHighlighting);
+
+        // Visible seats on top (no pointer events; hover handled by hit areas)
         chartGroup.selectAll(".seat").data(currentYearData, (d, i) => `${d.name}-${state.current_election_index}-${i}`).join(
             enter => enter.append("circle").attr("class", "seat").attr("fill", d => d.color).attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0).call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius - 0.5)),
             update => update.transition().duration(state.animation_duration).attr("cx", (d, i) => positions[i].x).attr("cy", (d, i) => positions[i].y).attr("r", seatRadius - 0.5).attr("fill", d => d.color),
             exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
         )
-        .on("mouseover", function(event, d) {
-            highlightParty(d.name, d.color);
-        })
-        .on("mouseout", function() {
-            resetHighlighting();
-        });
+        .style("pointer-events", "none")
+        .style("cursor", "pointer");
         drawMajorityLine(positions, totalSeats, state);
         updateLegend(partiesForYear);
         updateTable();
@@ -397,7 +402,7 @@
         if (!state.legend.enabled) return;
         legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
         parties.forEach(party => {
-            const item = legendContainer.append("div").attr("class", "legend-item").style("cursor", "pointer");
+            const item = legendContainer.append("div").datum(party).attr("class", "legend-item").style("cursor", "pointer");
             item.append("div").attr("class", "legend-swatch").style("width", "15px").style("height", "15px").style("background-color", party.color).style("border-radius", "3px");
             item.append("span").text(`${party.party} (${party.seats})`);
             
@@ -421,7 +426,7 @@
         headerRow.append("th").text("Party");
         ELECTION_DATA.years.forEach(year => { headerRow.append("th").text(year); });
         ELECTION_DATA.parties.forEach(party => {
-            const row = tbody.append("tr").style("cursor", "pointer");
+            const row = tbody.append("tr").datum(party).style("cursor", "pointer");
             const nameCell = row.append("td").attr("class", "party-name");
             nameCell.append("div").attr("class", "color-swatch").style("background-color", PARTY_COLORS[party.party]);
             nameCell.append("span").text(party.party);
@@ -728,28 +733,21 @@
             .style("stroke", darkerColor)
             .style("stroke-width", "2px");
             
-        // Highlight the party in the legend
+        // Highlight the party in the legend (match by bound data)
         d3.selectAll(".legend-item")
-            .style("opacity", 0.5);
+            .style("opacity", 0.3);
         d3.selectAll(".legend-item")
-            .filter(function(p) { 
-                // Find the legend item that matches the party name
-                const text = d3.select(this).select("span").text();
-                return text.startsWith(partyName);
-            })
+            .filter(function(d) { return d && d.party === partyName; })
             .style("opacity", 1)
             .style("font-weight", "bold");
             
-        // Highlight the party in the table
+        // Highlight the party in the table (match by bound data)
         d3.selectAll("#table-container table tbody tr")
-            .style("opacity", 0.5);
+            .style("opacity", 0.3)
+            .style("background-color", "transparent");
         d3.selectAll("#table-container table tbody tr")
-            .filter(function() {
-                const partyNameCell = d3.select(this).select(".party-name span");
-                return partyNameCell.text() === partyName;
-            })
+            .filter(function(d) { return d && d.party === partyName; })
             .style("opacity", 1)
-            .style("font-weight", "bold")
             .style("background-color", "#f0f8ff");
     }
     
@@ -825,16 +823,31 @@
                 .style('dominant-baseline', 'middle')
                 .text(totalSeats);
         }
-        if (totalSeats === 0) { chartGroup.selectAll(".parliament-seat").remove(); majorityLineGroup.html(""); }
+        if (totalSeats === 0) { chartGroup.selectAll(".parliament-seat, .seat-hit-area").remove(); majorityLineGroup.html(""); }
+
+        // Invisible hit areas for better hover (embedded)
+        chartGroup.selectAll(".seat-hit-area").data(currentYearData, (d, i) => \`\${d.name}-\${state.current_election_index}-hit-\${i}\`).join(
+            enter => enter.append("circle").attr("class", "seat-hit-area").attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0)
+                .call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius + 3)),
+            update => update.transition().duration(state.animation_duration).attr("cx", (d, i) => positions[i].x).attr("cy", (d, i) => positions[i].y).attr("r", seatRadius + 3),
+            exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
+        )
+        .attr("fill", "transparent")
+        .attr("stroke", "none")
+        .style("pointer-events", "all")
+        .style("cursor", "pointer")
+        .on("mouseover", (event, d) => highlightParty(d.name, d.color))
+        .on("mouseout", resetHighlighting);
+
+        // Visible seats on top
         chartGroup.selectAll(".parliament-seat").data(currentYearData, (d, i) => \`\${d.name}-\${state.current_election_index}-\${i}\`).join(
-            enter => enter.append("circle").attr("class", "parliament-seat").attr("fill", d => d.color).attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0).call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius - 0.5)),
+            enter => enter.append("circle").attr("class", "parliament-seat").attr("fill", d => d.color).attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0)
+                .call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius - 0.5)),
             update => update.transition().duration(state.animation_duration).attr("cx", (d, i) => positions[i].x).attr("cy", (d, i) => positions[i].y).attr("r", seatRadius - 0.5).attr("fill", d => d.color),
             exit => exit.transition().duration(state.animation_duration).attr("r", 0).remove()
-        ).on("mouseover", function(event, d) {
-            highlightParty(d.name, d.color);
-        }).on("mouseout", function() {
-            resetHighlighting();
-        });
+        )
+        .style("pointer-events", "none")
+        .style("cursor", "pointer");
         drawMajorityLine(positions, totalSeats, state);
         updateLegend(partiesForYear);
         updateTable();
@@ -850,7 +863,7 @@
         if (!state.legend.enabled) return;
         legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
         parties.forEach(party => {
-            const item = legendContainer.append("div").attr("class", "legend-item").style("cursor", "pointer");
+            const item = legendContainer.append("div").datum(party).attr("class", "legend-item").style("cursor", "pointer");
             item.append("div").attr("class", "legend-swatch").style("width", "15px").style("height", "15px").style("background-color", party.color).style("border-radius", "3px");
             item.append("span").text(\`\${party.party} (\${party.seats})\`);
             
@@ -875,7 +888,7 @@
         headerRow.append("th").text("Party");
         ELECTION_DATA.years.forEach(year => { headerRow.append("th").text(year); });
         ELECTION_DATA.parties.forEach(party => {
-            const row = tbody.append("tr").style("cursor", "pointer");
+            const row = tbody.append("tr").datum(party).style("cursor", "pointer");
             const nameCell = row.append("td").attr("class", "party-name");
             nameCell.append("div").attr("class", "color-swatch").style("background-color", PARTY_COLORS[party.party]);
             nameCell.append("span").text(party.party);
@@ -933,3 +946,4 @@
 </script>
 </body>
 </html>
+

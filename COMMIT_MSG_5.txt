@@ -1,0 +1,1 @@
+chore: enlarge hover hit areas (seatRadius + 6) for better between-seat hover in static and embed
