@@ -93,7 +93,14 @@
                      <label><input type="radio" name="legend-orientation" value="horizontal" checked> Horizontal</label>
                      <label><input type="radio" name="legend-orientation" value="vertical"> Vertical</label>
                  </div>
+                 <label><span>Text Size (px)</span><input type="number" id="legend-text-size" value="14" min="8" max="48"></label>
+                 <label><span>Text Color</span><input type="color" id="legend-text-color" value="#333333"></label>
              </div>
+        </div>
+        <div class="setting-group">
+            <h3>Total Number</h3>
+            <label><span>Text Size (px)</span><input type="number" id="total-text-size" value="28" min="8" max="96"></label>
+            <label><span>Text Color</span><input type="color" id="total-text-color" value="#333333"></label>
         </div>
         <div class="setting-group">
             <h3>Year Configuration</h3>
@@ -138,9 +145,15 @@
     let PARTY_COLORS = {};
 
     let state = {
-        current_election_index: 0, arc_degrees: 180, inner_radius_ratio: 0.3, seat_size_mode: 'auto',
-        fixed_seat_radius: 8, majority_line: { enabled: false, label: "Majority", position: 50, color: "#000000", width: 1.5 },
-        legend: { enabled: true, orientation: 'horizontal' }, animation_duration: 800
+        current_election_index: 0,
+        arc_degrees: 180,
+        inner_radius_ratio: 0.3,
+        seat_size_mode: 'auto',
+        fixed_seat_radius: 8,
+        majority_line: { enabled: false, label: "Majority", position: 50, color: "#000000", width: 1.5 },
+        legend: { enabled: true, orientation: 'horizontal', font_size: 14, color: '#333333' },
+        total_text: { size: 28, color: '#333333' },
+        animation_duration: 800
     };
 
     const svg = d3.select("#parliament-chart");
@@ -353,28 +366,13 @@
                 .attr('x', 0)
                 .attr('y', 0)
                 .attr('text-anchor', 'middle')
-                .style('font-size', '28px')
+                .style('font-size', (state.total_text.size || 28) + 'px')
                 .style('font-weight', 'bold')
-                .style('fill', '#333')
+                .style('fill', state.total_text.color || '#333333')
                 .style('dominant-baseline', 'middle')
                 .text(totalSeats);
         }
         labelsGroup.attr("transform", "translate(0,0)");
-
-        // Draw/update only the total seats number centered in the graphic
-        labelsGroup.selectAll('.total-seats-number').remove();
-        if (totalSeats > 0) {
-            labelsGroup.append('text')
-                .attr('class', 'total-seats-number')
-                .attr('x', 0)
-                .attr('y', 0)
-                .attr('text-anchor', 'middle')
-                .style('font-size', '28px')
-                .style('font-weight', 'bold')
-                .style('fill', '#333')
-                .style('dominant-baseline', 'middle')
-                .text(totalSeats);
-        }
         if (totalSeats === 0) { chartGroup.selectAll(".seat").remove(); majorityLineGroup.html(""); }
         chartGroup.selectAll(".seat").data(currentYearData, (d, i) => `${d.name}-${state.current_election_index}-${i}`).join(
             enter => enter.append("circle").attr("class", "seat").attr("fill", d => d.color).attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0).call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius - 0.5)),
@@ -395,6 +393,7 @@
     function updateLegend(parties) {
         const legendContainer = d3.select("#legend-container");
         legendContainer.html("").style("display", state.legend.enabled ? "flex" : "none");
+        legendContainer.style("font-size", (state.legend.font_size || 14) + "px").style("color", state.legend.color || "#333333");
         if (!state.legend.enabled) return;
         legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
         parties.forEach(party => {
@@ -492,6 +491,10 @@
         document.getElementById('majority-line-width').addEventListener('input', e => { state.majority_line.width = +e.target.value; update(); });
         document.getElementById('legend-enabled').addEventListener('change', e => { state.legend.enabled = e.target.checked; document.getElementById('legend-options').classList.toggle('hidden', !e.target.checked); update(); });
         document.querySelectorAll('input[name="legend-orientation"]').forEach(r => r.addEventListener('change', e => { state.legend.orientation = e.target.value; update(); }));
+        document.getElementById('legend-text-size').addEventListener('input', e => { state.legend.font_size = +e.target.value; update(); });
+        document.getElementById('legend-text-color').addEventListener('input', e => { state.legend.color = e.target.value; update(); });
+        document.getElementById('total-text-size').addEventListener('input', e => { state.total_text.size = +e.target.value; update(); });
+        document.getElementById('total-text-color').addEventListener('input', e => { state.total_text.color = e.target.value; update(); });
         document.getElementById('add-party').addEventListener('click', addParty);
         document.getElementById('add-year').addEventListener('click', addYear);
         window.addEventListener('resize', () => update("resize"));

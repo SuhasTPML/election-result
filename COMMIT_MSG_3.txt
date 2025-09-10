@@ -1,0 +1,1 @@
+feat: add settings for total number and legend text size/color; apply in live and embedded updates
