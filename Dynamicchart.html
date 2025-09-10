@@ -495,6 +495,11 @@
         const ltc = document.getElementById('legend-text-color'); if (ltc) ltc.addEventListener('input', e => { state.legend.color = e.target.value; update(); });
         const tts = document.getElementById('total-text-size'); if (tts) tts.addEventListener('input', e => { state.total_text.size = +e.target.value; update(); });
         const ttc = document.getElementById('total-text-color'); if (ttc) ttc.addEventListener('input', e => { state.total_text.color = e.target.value; update(); });
+        const sampleToggle = document.getElementById('use-sample-preview');
+        if (sampleToggle) sampleToggle.addEventListener('change', e => {
+            if (e.target.checked) { applySampleData(); }
+            else { loadDataAndInitialize(); }
+        });
         window.addEventListener('resize', () => update("resize"));
         document.getElementById('export-html').addEventListener('click', generateEmbeddableHTML);
         document.getElementById('close-modal').addEventListener('click', () => { document.getElementById('export-modal').style.display = 'none'; });
