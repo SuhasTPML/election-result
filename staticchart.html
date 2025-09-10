@@ -809,6 +809,22 @@
         svg.attr("width", finalWidth).attr("height", finalHeight);
         chartGroup.attr("transform", "translate(0,0)");
         majorityLineGroup.attr("transform", "translate(0,0)");
+        labelsGroup.attr("transform", "translate(0,0)");
+
+        // Draw/update only the total seats number centered in the graphic (embedded)
+        labelsGroup.selectAll('.total-seats-number').remove();
+        if (totalSeats > 0) {
+            labelsGroup.append('text')
+                .attr('class', 'total-seats-number')
+                .attr('x', 0)
+                .attr('y', 0)
+                .attr('text-anchor', 'middle')
+                .style('font-size', (state.total_text && state.total_text.size ? state.total_text.size : 28) + 'px')
+                .style('font-weight', 'bold')
+                .style('fill', (state.total_text && state.total_text.color) ? state.total_text.color : '#333333')
+                .style('dominant-baseline', 'middle')
+                .text(totalSeats);
+        }
         if (totalSeats === 0) { chartGroup.selectAll(".parliament-seat").remove(); majorityLineGroup.html(""); }
         chartGroup.selectAll(".parliament-seat").data(currentYearData, (d, i) => \`\${d.name}-\${state.current_election_index}-\${i}\`).join(
             enter => enter.append("circle").attr("class", "parliament-seat").attr("fill", d => d.color).attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0).call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius - 0.5)),
@@ -828,6 +844,9 @@
     function updateLegend(parties) {
         const legendContainer = d3.select("#legend-container");
         legendContainer.html("").style("display", state.legend.enabled ? "flex" : "none");
+        // Apply legend text style in embed
+        legendContainer.style("font-size", ((state.legend && state.legend.font_size) ? state.legend.font_size : 14) + "px")
+                        .style("color", (state.legend && state.legend.color) ? state.legend.color : "#333333");
         if (!state.legend.enabled) return;
         legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
         parties.forEach(party => {
