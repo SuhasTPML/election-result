@@ -1,0 +1,1 @@
+feat(dynamic): add preview-only sample data toggle; embed still uses Google Sheets

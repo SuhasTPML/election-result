@@ -583,7 +583,9 @@
     // --- INITIALIZE GENERATOR ---
     function initializeGenerator() {
         setupEventListeners();
-        loadDataAndInitialize();
+        const sampleToggle = document.getElementById('use-sample-preview');
+        if (sampleToggle && sampleToggle.checked) { applySampleData(); }
+        else { loadDataAndInitialize(); }
     }
     initializeGenerator();
 
