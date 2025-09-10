@@ -152,6 +152,14 @@
     const majorityLineGroup = svg.append("g").attr("class", "majority-line-group");
     const labelsGroup = svg.append("g").attr("class", "labels-group");
 
+    // Responsive scaling for sizes set via settings (legend text, total text, majority line width, fixed seat radius)
+    function getMobileScale(containerWidth) {
+        if (!containerWidth || containerWidth <= 0) return 1;
+        // Scale down smoothly below 600px; clamp between 0.6 and 1.0
+        const base = 600;
+        return Math.max(0.6, Math.min(1, containerWidth / base));
+    }
+
     // Sample data for preview-only mode (embed will still use Google Sheets)
     const SAMPLE_ELECTION_DATA = {
         years: ["2020", "2024"],
@@ -351,7 +359,7 @@
     function resetHighlighting() {
         chartGroup.selectAll(".parliament-seat").classed("dimmed", false)
             .style("stroke", d => d.type === 'lead' ? d.color : "#fff")
-            .style("stroke-width", d => d.type === 'lead' ? 2 : 1)
+            .style("stroke-width", d => 1)
             .style("fill", d => d.type === 'seat' ? d.color : 'transparent');
         d3.selectAll(".legend-item").style("opacity", 1).style("font-weight", "normal");
         d3.selectAll("#table-container tbody tr").style("opacity", 1).style("background-color", "transparent");
@@ -374,8 +382,14 @@
         const container = d3.select("#parliament-svg-container");
         if (!container.node()) return;
         const width = container.node().getBoundingClientRect().width;
+        const mobileScale = getMobileScale(width);
         const baseHeight = width / 2 * (state.arc_degrees > 180 ? 2 : 1);
-        const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, state);
+        // Pass scaled fixed radius when in fixed mode so layout matches visual size on mobile
+        const scaledConfig = {
+            ...state,
+            fixed_seat_radius: state.seat_size_mode === 'fixed' ? state.fixed_seat_radius * mobileScale : state.fixed_seat_radius
+        };
+        const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, scaledConfig);
         svg.attr("width", "100%").attr("height", "100%");
         const padding = 30, textPadding = 10;
         let minX = 0, maxX = 0, minY = 0, maxY = 0;
@@ -394,7 +408,7 @@
         majorityLineGroup.attr("transform", "translate(0,0)");
         labelsGroup.attr("transform", "translate(0,0)");
 
-        // Centered total seats number
+        // Centered total seats number (scale font-size for mobile)
         labelsGroup.selectAll('.total-seats-number').remove();
         if (totalSeats > 0) {
             labelsGroup.append('text')
@@ -402,7 +416,7 @@
                 .attr('x', 0)
                 .attr('y', 0)
                 .attr('text-anchor', 'middle')
-                .style('font-size', ((state.total_text && state.total_text.size) ? state.total_text.size : 28) + 'px')
+                .style('font-size', (((state.total_text && state.total_text.size) ? state.total_text.size : 28) * mobileScale) + 'px')
                 .style('font-weight', 'bold')
                 .style('fill', (state.total_text && state.total_text.color) ? state.total_text.color : '#333333')
                 .style('dominant-baseline', 'middle')
@@ -432,12 +446,22 @@
         )
         .attr("fill", d => d.type === 'seat' ? d.color : 'transparent')
         .style("stroke", d => d.type === 'lead' ? d.color : '#fff')
-        .style("stroke-width", d => d.type === 'lead' ? 2 : 1)
+        .style("stroke-width", d => 1)
         .style("stroke-dasharray", "none")
         .style("pointer-events", "none")
         .style("cursor", "pointer");
         
-        drawMajorityLine(positions, totalSeats, state);
+        // Scale majority line width for mobile by passing adjusted config
+        const scaledForMajority = {
+            ...state,
+            majority_line: {
+                ...state.majority_line,
+                width: (state.majority_line && typeof state.majority_line.width === 'number')
+                    ? state.majority_line.width * mobileScale
+                    : 1.5 * mobileScale
+            }
+        };
+        drawMajorityLine(positions, totalSeats, scaledForMajority);
         updateLegend(partiesForYear);
         updateTable();
         updateControls();
@@ -447,7 +471,10 @@
         const legendContainer = d3.select("#legend-container");
         legendContainer.html("").style("display", state.legend.enabled ? "flex" : "none");
         // Apply legend text style
-        legendContainer.style("font-size", ((state.legend && state.legend.font_size) ? state.legend.font_size : 14) + "px")
+        const container = d3.select("#parliament-svg-container");
+        const w = container.node() ? container.node().getBoundingClientRect().width : 900;
+        const mobileScale = getMobileScale(w);
+        legendContainer.style("font-size", (((state.legend && state.legend.font_size) ? state.legend.font_size : 14) * mobileScale) + "px")
                         .style("color", (state.legend && state.legend.color) ? state.legend.color : "#333333");
         if (!state.legend.enabled) return;
         legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
@@ -540,7 +567,7 @@
 
     function generateEmbeddableHTML() {
         const functionsToEmbed = [
-            loadDataAndInitialize, getLayoutCapacity, calculateLayout, drawMajorityLine, 
+            loadDataAndInitialize, getLayoutCapacity, calculateLayout, drawMajorityLine, getMobileScale,
             highlightParty, resetHighlighting, update, 
             updateLegend, updateTable, updateControls
         ].map(fn => fn.toString()).join('\n\n');

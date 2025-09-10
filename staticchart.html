@@ -8,7 +8,8 @@
     <style id="chart-styles">
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; background-color: #f0f2f5; color: #333; margin: 0; height: 100vh; }
         .container { display: flex; width: 100%; height: 100%; }
-        .settings-panel { width: 380px; padding: 20px; background-color: #fff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); overflow-y: auto; flex-shrink: 0; height: 100vh; box-sizing: border-box; }
+        .settings-panel { width: 380px; padding: 20px; background-color: #fff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); overflow-y: auto; flex-shrink: 0; height: 100vh; box-sizing: border-box; position: relative; z-index: 2; }
+        .chart-container { position: relative; z-index: 1; }
         .settings-panel h2 { margin-top: 0; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; }
         .setting-group { margin-bottom: 25px; }
         .setting-group h3 { margin-bottom: 10px; font-size: 1em; color: #555; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px;}
@@ -160,6 +161,13 @@
     const chartGroup = svg.append("g");
     const majorityLineGroup = svg.append("g").attr("class", "majority-line-group");
     const labelsGroup = svg.append("g").attr("class", "labels-group");
+
+    // Responsive scaling for settings-based sizes
+    function getMobileScale(containerWidth) {
+        if (!containerWidth || containerWidth <= 0) return 1;
+        const base = 600;
+        return Math.max(0.6, Math.min(1, containerWidth / base));
+    }
 
     // --- CORE LAYOUT ALGORITHM (UNCHANGED) ---
     function getLayoutCapacity(seatRadius, chartHeight, innerRadiusRatio, arcDegrees) {
@@ -321,8 +329,13 @@
         const totalSeats = currentYearData.length;
         const container = d3.select("#parliament-svg-container");
         const width = container.node().getBoundingClientRect().width;
+        const mobileScale = getMobileScale(width);
         const baseHeight = width / 2 * (state.arc_degrees > 180 ? 2 : 1);
-        const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, state);
+        const scaledConfig = {
+            ...state,
+            fixed_seat_radius: state.seat_size_mode === 'fixed' ? state.fixed_seat_radius * mobileScale : state.fixed_seat_radius
+        };
+        const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, scaledConfig);
         svg.attr("width", "100%").attr("height", "100%");
         const padding = 30;
         const textPadding = 10;
@@ -347,6 +360,7 @@
         const finalWidth = maxWidth;
         const finalHeight = viewBoxHeight * scale;
         svg.attr("width", finalWidth).attr("height", finalHeight);
+        // Use previously computed mobileScale based on container width
         chartGroup.attr("transform", "translate(0,0)");
         majorityLineGroup.attr("transform", "translate(0,0)");
         labelsGroup.attr("transform", "translate(0,0)");
@@ -359,7 +373,7 @@
                 .attr('x', 0)
                 .attr('y', 0)
                 .attr('text-anchor', 'middle')
-                .style('font-size', (state.total_text.size || 28) + 'px')
+                .style('font-size', ((state.total_text.size || 28) * mobileScale) + 'px')
                 .style('font-weight', 'bold')
                 .style('fill', state.total_text.color || '#333333')
                 .style('dominant-baseline', 'middle')
@@ -390,7 +404,18 @@
         )
         .style("pointer-events", "none")
         .style("cursor", "pointer");
-        drawMajorityLine(positions, totalSeats, state);
+        // Draw majority line with scaled width in embed
+        const scaledForMajority = {
+            ...state,
+            majority_line: {
+                ...state.majority_line,
+                width: (state.majority_line && typeof state.majority_line.width === 'number')
+                    ? state.majority_line.width * mobileScale
+                    : 1.5 * mobileScale
+            }
+        };
+        drawMajorityLine(positions, totalSeats, scaledForMajority);
+        
         updateLegend(partiesForYear);
         updateTable();
         updateControls();
@@ -398,7 +423,10 @@
     function updateLegend(parties) {
         const legendContainer = d3.select("#legend-container");
         legendContainer.html("").style("display", state.legend.enabled ? "flex" : "none");
-        legendContainer.style("font-size", (state.legend.font_size || 14) + "px").style("color", state.legend.color || "#333333");
+        const container = d3.select("#parliament-svg-container");
+        const w = container.node() ? container.node().getBoundingClientRect().width : 900;
+        const mobileScale = getMobileScale(w);
+        legendContainer.style("font-size", ((state.legend.font_size || 14) * mobileScale) + "px").style("color", state.legend.color || "#333333");
         if (!state.legend.enabled) return;
         legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
         parties.forEach(party => {
@@ -567,7 +595,7 @@
     }
 
     function generateEmbeddableHTML() {
-        const functionsToEmbed = [getLayoutCapacity, calculateLayout, drawMajorityLine, highlightParty, resetHighlighting, update, updateLegend, updateTable, updateControls].map(fn => fn.toString()).join('\n\n');
+        const functionsToEmbed = [getMobileScale, getLayoutCapacity, calculateLayout, drawMajorityLine].map(fn => fn.toString()).join('\n\n');
         const styles = document.getElementById('chart-styles').innerHTML;
         const htmlTemplate = `
 <!DOCTYPE html>
@@ -779,6 +807,7 @@
         const totalSeats = currentYearData.length;
         const container = d3.select("#parliament-svg-container");
         const width = container.node().getBoundingClientRect().width;
+        const mobileScale = getMobileScale(width);
         const baseHeight = width / 2 * (state.arc_degrees > 180 ? 2 : 1);
         const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, state);
         svg.attr("width", "100%").attr("height", "100%");
@@ -809,7 +838,7 @@
         majorityLineGroup.attr("transform", "translate(0,0)");
         labelsGroup.attr("transform", "translate(0,0)");
 
-        // Draw/update only the total seats number centered in the graphic (embedded)
+        // Draw/update only the total seats number centered in the graphic (embedded) with mobile scaling
         labelsGroup.selectAll('.total-seats-number').remove();
         if (totalSeats > 0) {
             labelsGroup.append('text')
@@ -817,7 +846,7 @@
                 .attr('x', 0)
                 .attr('y', 0)
                 .attr('text-anchor', 'middle')
-                .style('font-size', (state.total_text && state.total_text.size ? state.total_text.size : 28) + 'px')
+                .style('font-size', ((state.total_text && state.total_text.size ? state.total_text.size : 28) * mobileScale) + 'px')
                 .style('font-weight', 'bold')
                 .style('fill', (state.total_text && state.total_text.color) ? state.total_text.color : '#333333')
                 .style('dominant-baseline', 'middle')
@@ -857,8 +886,11 @@
     function updateLegend(parties) {
         const legendContainer = d3.select("#legend-container");
         legendContainer.html("").style("display", state.legend.enabled ? "flex" : "none");
-        // Apply legend text style in embed
-        legendContainer.style("font-size", ((state.legend && state.legend.font_size) ? state.legend.font_size : 14) + "px")
+        // Apply legend text style in embed with mobile scaling
+        const container = d3.select("#parliament-svg-container");
+        const w = container.node() ? container.node().getBoundingClientRect().width : 900;
+        const mobileScale = getMobileScale(w);
+        legendContainer.style("font-size", (((state.legend && state.legend.font_size) ? state.legend.font_size : 14) * mobileScale) + "px")
                         .style("color", (state.legend && state.legend.color) ? state.legend.color : "#333333");
         if (!state.legend.enabled) return;
         legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
