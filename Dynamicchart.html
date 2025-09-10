@@ -86,7 +86,14 @@
                      <label><input type="radio" name="legend-orientation" value="horizontal" checked> Horizontal</label>
                      <label><input type="radio" name="legend-orientation" value="vertical"> Vertical</label>
                  </div>
+                 <label><span>Text Size (px)</span><input type="number" id="legend-text-size" value="14" min="8" max="48"></label>
+                 <label><span>Text Color</span><input type="color" id="legend-text-color" value="#333333"></label>
              </div>
+        </div>
+        <div class="setting-group">
+            <h3>Total Number</h3>
+            <label><span>Text Size (px)</span><input type="number" id="total-text-size" value="28" min="8" max="96"></label>
+            <label><span>Text Color</span><input type="color" id="total-text-color" value="#333333"></label>
         </div>
         <div class="setting-group">
             <h3>Export</h3>
@@ -124,14 +131,22 @@
     let ELECTION_DATA = { years: [], parties: [] };
     let PARTY_COLORS = {};
     let state = {
-        current_election_index: 0, arc_degrees: 180, inner_radius_ratio: 0.3, seat_size_mode: 'auto',
-        fixed_seat_radius: 8, majority_line: { enabled: false, label: "Majority", position: 50, color: "#000000", width: 1.5 },
-        legend: { enabled: true, orientation: 'horizontal' }, animation_duration: 800
+        current_election_index: 0,
+        arc_degrees: 180,
+        inner_radius_ratio: 0.3,
+        seat_size_mode: 'auto',
+        fixed_seat_radius: 8,
+        majority_line: { enabled: false, label: "Majority", position: 50, color: "#000000", width: 1.5 },
+        legend: { enabled: true, orientation: 'horizontal', font_size: 14, color: '#333333' },
+        total_text: { size: 28, color: '#333333' },
+        animation_duration: 800
     };
 
     const svg = d3.select("#parliament-chart");
     const chartGroup = svg.append("g");
     const majorityLineGroup = svg.append("g").attr("class", "majority-line-group");
+    const labelsGroup = svg.append("g").attr("class", "labels-group");
+    const labelsGroup = svg.append("g").attr("class", "labels-group");
 
     async function loadDataAndInitialize() {
         if (!GOOGLE_SHEET_URL || GOOGLE_SHEET_URL === 'PASTE_YOUR_URL_HERE') {
@@ -348,6 +363,22 @@
         svg.attr("viewBox", `${minX} ${minY} ${viewBoxWidth} ${viewBoxHeight}`).attr("preserveAspectRatio", "xMidYMid meet");
         chartGroup.attr("transform", "translate(0,0)");
         majorityLineGroup.attr("transform", "translate(0,0)");
+        labelsGroup.attr("transform", "translate(0,0)");
+
+        // Centered total seats number
+        labelsGroup.selectAll('.total-seats-number').remove();
+        if (totalSeats > 0) {
+            labelsGroup.append('text')
+                .attr('class', 'total-seats-number')
+                .attr('x', 0)
+                .attr('y', 0)
+                .attr('text-anchor', 'middle')
+                .style('font-size', ((state.total_text && state.total_text.size) ? state.total_text.size : 28) + 'px')
+                .style('font-weight', 'bold')
+                .style('fill', (state.total_text && state.total_text.color) ? state.total_text.color : '#333333')
+                .style('dominant-baseline', 'middle')
+                .text(totalSeats);
+        }
         
         // Add invisible hit areas first (larger circles for better hover zones)
         chartGroup.selectAll(".seat-hit-area").data(currentYearData, (d, i) => `${d.name}-${d.type}-hit-${i}`).join(
@@ -386,6 +417,9 @@
     function updateLegend(parties) {
         const legendContainer = d3.select("#legend-container");
         legendContainer.html("").style("display", state.legend.enabled ? "flex" : "none");
+        // Apply legend text style
+        legendContainer.style("font-size", ((state.legend && state.legend.font_size) ? state.legend.font_size : 14) + "px")
+                        .style("color", (state.legend && state.legend.color) ? state.legend.color : "#333333");
         if (!state.legend.enabled) return;
         legendContainer.style("flex-direction", state.legend.orientation === 'vertical' ? 'column' : 'row');
         
@@ -457,6 +491,10 @@
         document.getElementById('majority-line-width').addEventListener('input', e => { state.majority_line.width = +e.target.value; update(); });
         document.getElementById('legend-enabled').addEventListener('change', e => { state.legend.enabled = e.target.checked; document.getElementById('legend-options').classList.toggle('hidden', !e.target.checked); update(); });
         document.querySelectorAll('input[name="legend-orientation"]').forEach(r => r.addEventListener('change', e => { state.legend.orientation = e.target.value; update(); }));
+        const lts = document.getElementById('legend-text-size'); if (lts) lts.addEventListener('input', e => { state.legend.font_size = +e.target.value; update(); });
+        const ltc = document.getElementById('legend-text-color'); if (ltc) ltc.addEventListener('input', e => { state.legend.color = e.target.value; update(); });
+        const tts = document.getElementById('total-text-size'); if (tts) tts.addEventListener('input', e => { state.total_text.size = +e.target.value; update(); });
+        const ttc = document.getElementById('total-text-color'); if (ttc) ttc.addEventListener('input', e => { state.total_text.color = e.target.value; update(); });
         window.addEventListener('resize', () => update("resize"));
         document.getElementById('export-html').addEventListener('click', generateEmbeddableHTML);
         document.getElementById('close-modal').addEventListener('click', () => { document.getElementById('export-modal').style.display = 'none'; });

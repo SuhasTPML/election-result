@@ -1,0 +1,1 @@
+feat(dynamic): add centered total number and legend text size/color settings; apply in live and embedded export
