@@ -146,6 +146,7 @@
     const svg = d3.select("#parliament-chart");
     const chartGroup = svg.append("g");
     const majorityLineGroup = svg.append("g").attr("class", "majority-line-group");
+    const labelsGroup = svg.append("g").attr("class", "labels-group");
 
     // --- CORE LAYOUT ALGORITHM (UNCHANGED) ---
     function getLayoutCapacity(seatRadius, chartHeight, innerRadiusRatio, arcDegrees) {
@@ -342,6 +343,21 @@
         svg.attr("width", finalWidth).attr("height", finalHeight);
         chartGroup.attr("transform", "translate(0,0)");
         majorityLineGroup.attr("transform", "translate(0,0)");
+        labelsGroup.attr("transform", "translate(0,0)");
+
+        // Draw/update total seats label at the top-center
+        labelsGroup.selectAll('.total-seats-label').remove();
+        const labelX = (minX + maxX) / 2;
+        const labelY = minY + 14; // small padding from top of viewBox
+        labelsGroup.append('text')
+            .attr('class', 'total-seats-label')
+            .attr('x', labelX)
+            .attr('y', labelY)
+            .attr('text-anchor', 'middle')
+            .style('font-size', '14px')
+            .style('font-weight', 'bold')
+            .style('fill', '#333')
+            .text(`Total seats: ${totalSeats}`);
         if (totalSeats === 0) { chartGroup.selectAll(".seat").remove(); majorityLineGroup.html(""); }
         chartGroup.selectAll(".seat").data(currentYearData, (d, i) => `${d.name}-${state.current_election_index}-${i}`).join(
             enter => enter.append("circle").attr("class", "seat").attr("fill", d => d.color).attr("cx", (d, i) => positions[i]? positions[i].x : 0).attr("cy", (d, i) => positions[i]? positions[i].y : 0).attr("r", 0).call(enter => enter.transition().duration(triggeringEvent === "resize" ? 0 : state.animation_duration).attr("r", seatRadius - 0.5)),

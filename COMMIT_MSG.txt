@@ -1,0 +1,1 @@
+chore: checkpoint before adding centered total seats number
