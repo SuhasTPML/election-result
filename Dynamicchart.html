@@ -68,6 +68,10 @@
             </div>
         </div>
         <div class="setting-group">
+            <h3>Data Source</h3>
+            <label><span>Preview with Sample Data</span><input type="checkbox" id="use-sample-preview" checked></label>
+        </div>
+        <div class="setting-group">
             <h3>Majority Line</h3>
             <label><span>Show Line</span><input type="checkbox" id="majority-line-enabled"></label>
             <div id="majority-line-options" class="hidden">
@@ -146,7 +150,31 @@
     const chartGroup = svg.append("g");
     const majorityLineGroup = svg.append("g").attr("class", "majority-line-group");
     const labelsGroup = svg.append("g").attr("class", "labels-group");
-    const labelsGroup = svg.append("g").attr("class", "labels-group");
+
+    // Sample data for preview-only mode (embed will still use Google Sheets)
+    const SAMPLE_ELECTION_DATA = {
+        years: ["2020", "2024"],
+        parties: [
+            { party: "Alpha", yearly_results: [ { year: "2020", seats: 120, leads: 0 }, { year: "2024", seats: 135, leads: 4 } ] },
+            { party: "Beta",  yearly_results: [ { year: "2020", seats: 100, leads: 0 }, { year: "2024", seats:  95, leads: 2 } ] },
+            { party: "Gamma", yearly_results: [ { year: "2020", seats:  80, leads: 0 }, { year: "2024", seats:  70, leads: 1 } ] }
+        ]
+    };
+    const SAMPLE_PARTY_COLORS = { Alpha: "#1f77b4", Beta: "#ff7f0e", Gamma: "#2ca02c" };
+
+    function applySampleData() {
+        ELECTION_DATA.years = [...SAMPLE_ELECTION_DATA.years];
+        ELECTION_DATA.parties = SAMPLE_ELECTION_DATA.parties.map(p => ({
+            party: p.party,
+            yearly_results: p.yearly_results.map(r => ({ year: r.year, seats: r.seats, leads: r.leads }))
+        }));
+        PARTY_COLORS = { ...SAMPLE_PARTY_COLORS };
+        state.current_election_index = ELECTION_DATA.years.length - 1;
+        document.getElementById('chart-title').textContent = CHART_TITLE;
+        updateControls();
+        update();
+        const err = document.getElementById('error-message'); if (err) err.textContent = '';
+    }
 
     async function loadDataAndInitialize() {
         if (!GOOGLE_SHEET_URL || GOOGLE_SHEET_URL === 'PASTE_YOUR_URL_HERE') {
