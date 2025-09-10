@@ -338,7 +338,7 @@
         chartGroup.selectAll(".parliament-seat").classed("dimmed", true);
         const partySeats = chartGroup.selectAll(".parliament-seat").filter(p => p && p.name === partyName);
         partySeats.classed("dimmed", false)
-            .style("stroke", darkerColor)
+            .style("stroke", d => d.type === 'lead' ? d.color : darkerColor)
             .style("stroke-width", "2px")
             .style("fill", d => d.type === 'lead' ? lighterColor : d.color);
         d3.selectAll(".legend-item").style("opacity", 0.3);
@@ -432,7 +432,7 @@
         .attr("fill", d => d.type === 'seat' ? d.color : 'transparent')
         .style("stroke", d => d.type === 'lead' ? d.color : '#fff')
         .style("stroke-width", d => d.type === 'lead' ? 1 : 1)
-        .style("stroke-dasharray", d => d.type === 'lead' ? "3 2" : "none")
+        .style("stroke-dasharray", "none")
         .style("pointer-events", "none")
         .style("cursor", "pointer");
         

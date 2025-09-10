@@ -1,0 +1,1 @@
+style(dynamic): leads use solid stroke with no fill; on hover keep solid stroke and apply lighter fill
