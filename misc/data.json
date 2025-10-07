@@ -1,0 +1,53 @@
+{
+  "years": [
+    "2020",
+    "2024"
+  ],
+  "parties": [
+    {
+      "party": "Alpha",
+      "yearly_results": [
+        {
+          "year": "2020",
+          "seats": 117,
+          "leads": 2
+        },
+        {
+          "year": "2024",
+          "seats": 120,
+          "leads": 1
+        }
+      ]
+    },
+    {
+      "party": "Beta",
+      "yearly_results": [
+        {
+          "year": "2020",
+          "seats": 104,
+          "leads": 5
+        },
+        {
+          "year": "2024",
+          "seats": 99,
+          "leads": 0
+        }
+      ]
+    },
+    {
+      "party": "Gamma",
+      "yearly_results": [
+        {
+          "year": "2020",
+          "seats": 84,
+          "leads": 0
+        },
+        {
+          "year": "2024",
+          "seats": 79,
+          "leads": 4
+        }
+      ]
+    }
+  ]
+}
