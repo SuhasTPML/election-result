@@ -495,9 +495,13 @@
         const tableContainer = d3.select("#table-container");
         tableContainer.html("");
         if (ELECTION_DATA.parties.length === 0) return;
+        
         const table = tableContainer.append("table");
+        
+        // Define headers: Party name, Wins + Leads, Wins, Leads, 2020 results
+        const headers = ["Party", "Wins + Leads", "Wins", "Leads", "2020 Results"];
         table.append("thead").append("tr").selectAll("th")
-            .data(["Party", ...ELECTION_DATA.years]).join("th").text(d => d);
+            .data(headers).join("th").text(d => d);
         
         const rows = table.append("tbody").selectAll("tr").data(ELECTION_DATA.parties).join("tr")
             .style("cursor", "pointer")
@@ -506,23 +510,34 @@
 
         rows.each(function(partyData) {
             const row = d3.select(this);
+            
+            // Party name cell with color swatch
             const nameCell = row.append("td").attr("class", "party-name");
             nameCell.append("div").attr("class", "color-swatch").style("background-color", PARTY_COLORS[partyData.party]);
             nameCell.append("span").text(partyData.party);
 
-            partyData.yearly_results.forEach((result, i) => {
-                let cellContent = result.seats;
-                if (result.leads > 0) cellContent += ` (+${result.leads})`;
-                const cell = row.append("td").text(cellContent);
-
-                if (i > 0) {
-                    const prevResult = partyData.yearly_results[i-1];
-                    const change = result.seats - prevResult.seats;
-                    if (change !== 0) {
-                        cell.append("span").attr("class", "seat-change").text(`(${change > 0 ? '+' : ''}${change})`).style("color", change > 0 ? "green" : "red");
-                    }
-                }
-            });
+            // Get current year data
+            const currentYear = ELECTION_DATA.years[state.current_election_index];
+            const currentYearData = partyData.yearly_results.find(yr => yr.year === currentYear);
+            const wins = currentYearData ? currentYearData.seats : 0;
+            const leads = currentYearData ? currentYearData.leads : 0;
+            
+            // Wins + Leads (total)
+            row.append("td").text(wins + leads);
+            
+            // Wins
+            row.append("td").text(wins);
+            
+            // Leads
+            row.append("td").text(leads);
+            
+            // 2020 results
+            const year2020Data = partyData.yearly_results.find(yr => yr.year === "2020");
+            if (year2020Data) {
+                row.append("td").text(year2020Data.seats + year2020Data.leads);
+            } else {
+                row.append("td").text("-"); // Use dash if 2020 data not available
+            }
         });
     }
 
