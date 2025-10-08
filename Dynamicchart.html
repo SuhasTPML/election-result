@@ -401,6 +401,37 @@
             minY = Math.min(...yPositions) - seatRadius - padding - textPadding;
             maxY = Math.max(...yPositions) + seatRadius + padding;
         } else { minX = -width/2; maxX = width/2; minY = -baseHeight/2 - textPadding; maxY = baseHeight/2; }
+
+        // Ensure the majority label is within the viewBox (prevents clipping at 50%)
+        try {
+            const ml = scaledConfig.majority_line;
+            if (ml && ml.enabled && totalSeats >= 2 && positions && positions.length) {
+                const positionRatio = ml.position / 100;
+                const clampIndex = Math.max(0, Math.min(totalSeats - 1, Math.floor(totalSeats * positionRatio)));
+                let targetAngle;
+                if (clampIndex === 0) {
+                    targetAngle = positions[0].angle;
+                } else if (clampIndex >= positions.length - 1) {
+                    targetAngle = positions[positions.length - 1].angle;
+                } else {
+                    const lowerIndex = Math.floor(totalSeats * positionRatio);
+                    const upperIndex = Math.min(lowerIndex + 1, positions.length - 1);
+                    const ratio = (totalSeats * positionRatio) - lowerIndex;
+                    targetAngle = positions[lowerIndex].angle * (1 - ratio) + positions[upperIndex].angle * ratio;
+                }
+                const outerRadius = Math.max(...positions.map(p => p.radius));
+                const labelOffset = 55; // keep in sync with drawMajorityLine
+                const labelX = Math.cos(targetAngle) * (outerRadius + labelOffset);
+                const labelY = Math.sin(targetAngle) * -(outerRadius + labelOffset);
+                // crude text size estimate at 14px bold: ~7px per char width, 16px height
+                const approxWidth = Math.max(40, (ml.label || 'Majority').length * 7);
+                const approxHeight = 18;
+                minX = Math.min(minX, labelX - approxWidth / 2);
+                maxX = Math.max(maxX, labelX + approxWidth / 2);
+                minY = Math.min(minY, labelY - approxHeight / 2);
+                maxY = Math.max(maxY, labelY + approxHeight / 2);
+            }
+        } catch (_) { /* noop – fallback to seat extents */ }
         const viewBoxWidth = maxX - minX;
         const viewBoxHeight = maxY - minY;
         svg.attr("viewBox", `${minX} ${minY} ${viewBoxWidth} ${viewBoxHeight}`).attr("preserveAspectRatio", "xMidYMid meet");

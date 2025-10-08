@@ -350,6 +350,36 @@
         } else {
             minX = -width/2; maxX = width/2; minY = -baseHeight/2 - textPadding; maxY = baseHeight/2;
         }
+
+        // Include majority label bounds to avoid clipping (e.g., at 50%)
+        try {
+            const ml = scaledConfig.majority_line;
+            if (ml && ml.enabled && totalSeats >= 2 && positions && positions.length) {
+                const positionRatio = ml.position / 100;
+                const clampIndex = Math.max(0, Math.min(totalSeats - 1, Math.floor(totalSeats * positionRatio)));
+                let targetAngle;
+                if (clampIndex === 0) {
+                    targetAngle = positions[0].angle;
+                } else if (clampIndex >= positions.length - 1) {
+                    targetAngle = positions[positions.length - 1].angle;
+                } else {
+                    const lowerIndex = Math.floor(totalSeats * positionRatio);
+                    const upperIndex = Math.min(lowerIndex + 1, positions.length - 1);
+                    const ratio = (totalSeats * positionRatio) - lowerIndex;
+                    targetAngle = positions[lowerIndex].angle * (1 - ratio) + positions[upperIndex].angle * ratio;
+                }
+                const outerRadius = Math.max(...positions.map(p => p.radius));
+                const labelOffset = 55;
+                const labelX = Math.cos(targetAngle) * (outerRadius + labelOffset);
+                const labelY = Math.sin(targetAngle) * -(outerRadius + labelOffset);
+                const approxWidth = Math.max(40, (ml.label || 'Majority').length * 7);
+                const approxHeight = 18;
+                minX = Math.min(minX, labelX - approxWidth / 2);
+                maxX = Math.max(maxX, labelX + approxWidth / 2);
+                minY = Math.min(minY, labelY - approxHeight / 2);
+                maxY = Math.max(maxY, labelY + approxHeight / 2);
+            }
+        } catch (_) { /* ignore */ }
         const viewBoxWidth = maxX - minX;
         const viewBoxHeight = maxY - minY;
         // Set the viewBox for proper scaling
@@ -824,6 +854,36 @@
         } else {
             minX = -width/2; maxX = width/2; minY = -baseHeight/2 - textPadding; maxY = baseHeight/2;
         }
+
+        // Include majority label bounds to avoid clipping in embedded version
+        try {
+            const ml = state.majority_line;
+            if (ml && ml.enabled && totalSeats >= 2 && positions && positions.length) {
+                const positionRatio = ml.position / 100;
+                const clampIndex = Math.max(0, Math.min(totalSeats - 1, Math.floor(totalSeats * positionRatio)));
+                let targetAngle;
+                if (clampIndex === 0) {
+                    targetAngle = positions[0].angle;
+                } else if (clampIndex >= positions.length - 1) {
+                    targetAngle = positions[positions.length - 1].angle;
+                } else {
+                    const lowerIndex = Math.floor(totalSeats * positionRatio);
+                    const upperIndex = Math.min(lowerIndex + 1, positions.length - 1);
+                    const ratio = (totalSeats * positionRatio) - lowerIndex;
+                    targetAngle = positions[lowerIndex].angle * (1 - ratio) + positions[upperIndex].angle * ratio;
+                }
+                const outerRadius = Math.max(...positions.map(p => p.radius));
+                const labelOffset = 55;
+                const labelX = Math.cos(targetAngle) * (outerRadius + labelOffset);
+                const labelY = Math.sin(targetAngle) * -(outerRadius + labelOffset);
+                const approxWidth = Math.max(40, (ml.label || 'Majority').length * 7);
+                const approxHeight = 18;
+                minX = Math.min(minX, labelX - approxWidth / 2);
+                maxX = Math.max(maxX, labelX + approxWidth / 2);
+                minY = Math.min(minY, labelY - approxHeight / 2);
+                maxY = Math.max(maxY, labelY + approxHeight / 2);
+            }
+        } catch (_) { /* ignore */ }
         const viewBoxWidth = maxX - minX;
         const viewBoxHeight = maxY - minY;
         // Set the viewBox for proper scaling
