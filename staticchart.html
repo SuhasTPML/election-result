@@ -104,6 +104,10 @@
             <label><span>Text Color</span><input type="color" id="total-text-color" value="#333333"></label>
         </div>
         <div class="setting-group">
+            <h3>Column Labels</h3>
+            <label><span>First Column Label</span><input type="text" id="first-column-label" value="Party" placeholder="e.g., Party or Alliance"></label>
+        </div>
+        <div class="setting-group">
             <h3>Year Configuration</h3>
             <div id="year-config-container"></div>
             <button id="add-year">Add Year</button>
@@ -151,6 +155,7 @@
         inner_radius_ratio: 0.3,
         seat_size_mode: 'auto',
         fixed_seat_radius: 8,
+        first_column_label: 'Party',
         majority_line: { enabled: false, label: "Majority", position: 50, color: "#000000", width: 1.5 },
         legend: { enabled: true, orientation: 'horizontal', font_size: 14, color: '#333333' },
         total_text: { size: 28, color: '#333333' },
@@ -481,7 +486,7 @@
         const thead = table.append("thead");
         const tbody = table.append("tbody");
         const headerRow = thead.append("tr");
-        headerRow.append("th").text("Party");
+        headerRow.append("th").text(state.first_column_label || "Party");
         ELECTION_DATA.years.forEach(year => { headerRow.append("th").text(year); });
         ELECTION_DATA.parties.forEach(party => {
             const row = tbody.append("tr").datum(party).style("cursor", "pointer");
@@ -560,6 +565,7 @@
         document.getElementById('total-text-color').addEventListener('input', e => { state.total_text.color = e.target.value; update(); });
         document.getElementById('add-party').addEventListener('click', addParty);
         document.getElementById('add-year').addEventListener('click', addYear);
+        const fcl = document.getElementById('first-column-label'); if (fcl) fcl.addEventListener('input', e => { state.first_column_label = (e.target.value || 'Party'); renderPartyConfig(); updateTable(); });
         window.addEventListener('resize', () => update("resize"));
         // Export functionality listeners
         document.getElementById('export-html').addEventListener('click', generateEmbeddableHTML);
@@ -608,7 +614,7 @@
             partyDiv.className = 'party-config';
             const header = document.createElement('div');
             header.className = 'party-header';
-            header.innerHTML = `<input type="text" value="${party.party}" placeholder="Party Name" onchange="updatePartyData(${index}, 'name', this.value)"><input type="color" value="${PARTY_COLORS[party.party]}" onchange="updatePartyData(${index}, 'color', this.value)"><button onclick="removeParty(${index})" class="remove-party-btn">&times;</button>`;
+            header.innerHTML = `<input type="text" value="${party.party}" placeholder="${state.first_column_label || 'Party'} Name" onchange="updatePartyData(${index}, 'name', this.value)"><input type="color" value="${PARTY_COLORS[party.party]}" onchange="updatePartyData(${index}, 'color', this.value)"><button onclick="removeParty(${index})" class="remove-party-btn">&times;</button>`;
             const seatsDiv = document.createElement('div');
             seatsDiv.className = 'party-seats';
             ELECTION_DATA.years.forEach((year, yearIndex) => {
@@ -977,7 +983,7 @@
         const thead = table.append("thead");
         const tbody = table.append("tbody");
         const headerRow = thead.append("tr");
-        headerRow.append("th").text("Party");
+        headerRow.append("th").text(state.first_column_label || "Party");
         ELECTION_DATA.years.forEach(year => { headerRow.append("th").text(year); });
         ELECTION_DATA.parties.forEach(party => {
             const row = tbody.append("tr").datum(party).style("cursor", "pointer");
