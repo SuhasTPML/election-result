@@ -105,6 +105,13 @@
             <label><span>Text Color</span><input type="color" id="total-text-color" value="#333333"></label>
         </div>
         <div class="setting-group">
+            <h3>Auto Refresh</h3>
+            <label><span>Enable Auto Refresh</span><input type="checkbox" id="auto-refresh-enabled"></label>
+            <div id="auto-refresh-options" class="hidden">
+                <label><span>Refresh Interval (seconds)</span><input type="number" id="refresh-interval" value="30" min="5" max="3600"></label>
+            </div>
+        </div>
+        <div class="setting-group">
             <h3>Export</h3>
             <button id="export-html" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 6px; font-size: 16px;">Export Embeddable HTML</button>
         </div>
@@ -112,6 +119,7 @@
     <div class="chart-container">
         <h1 id="chart-title">Parliament Chart</h1>
         <div id="error-message"></div>
+        <div id="loading-indicator" style="display: none; color: #007bff; font-weight: bold; text-align: center; margin: 10px 0;">Refreshing data...</div>
         <div id="controls" class="controls"></div>
         <div id="parliament-svg-container"><svg id="parliament-chart"></svg></div>
         <div id="legend-container" class="legend"></div>
@@ -149,8 +157,10 @@
         majority_line: { enabled: false, label: "Majority", position: 50, color: "#000000", width: 1.5 },
         legend: { enabled: true, orientation: 'horizontal', font_size: 14, color: '#333333' },
         total_text: { size: 28, color: '#333333' },
-        animation_duration: 800
+        animation_duration: 800,
+        auto_refresh: { enabled: false, interval: 30 }
     };
+    let refreshIntervalId = null;
 
     const svg = d3.select("#parliament-chart");
     const chartGroup = svg.append("g");
@@ -188,6 +198,37 @@
         updateControls();
         update();
         const err = document.getElementById('error-message'); if (err) err.textContent = '';
+    }
+
+    // --- AUTO-REFRESH FUNCTIONS ---
+    function showLoadingIndicator() {
+        const indicator = document.getElementById('loading-indicator');
+        if (indicator) indicator.style.display = 'block';
+    }
+
+    function hideLoadingIndicator() {
+        const indicator = document.getElementById('loading-indicator');
+        if (indicator) indicator.style.display = 'none';
+    }
+
+    function startAutoRefresh() {
+        stopAutoRefresh(); // Clear any existing interval
+        if (state.auto_refresh.enabled && state.auto_refresh.interval > 0) {
+            const intervalMs = state.auto_refresh.interval * 1000;
+            refreshIntervalId = setInterval(() => {
+                showLoadingIndicator();
+                loadDataAndInitialize();
+            }, intervalMs);
+            console.log(`Auto-refresh started: every ${state.auto_refresh.interval} seconds`);
+        }
+    }
+
+    function stopAutoRefresh() {
+        if (refreshIntervalId !== null) {
+            clearInterval(refreshIntervalId);
+            refreshIntervalId = null;
+            console.log('Auto-refresh stopped');
+        }
     }
 
     async function loadDataAndInitialize() {
@@ -244,10 +285,12 @@
             document.getElementById('chart-title').textContent = CHART_TITLE;
             updateControls();
             update();
+            hideLoadingIndicator();
 
         } catch (error) {
             console.error("Failed to load or parse data:", error);
             document.getElementById('error-message').textContent = `Error: Could not load data. Please check the URL, ensure headers use underscores (e.g., 2024_Seats), and that the sheet is published. Details: ${error.message}`;
+            hideLoadingIndicator();
         }
     }
 
@@ -611,6 +654,27 @@
             if (e.target.checked) { applySampleData(); }
             else { loadDataAndInitialize(); }
         });
+
+        // Auto-refresh controls
+        const autoRefreshToggle = document.getElementById('auto-refresh-enabled');
+        if (autoRefreshToggle) autoRefreshToggle.addEventListener('change', e => {
+            state.auto_refresh.enabled = e.target.checked;
+            document.getElementById('auto-refresh-options').classList.toggle('hidden', !e.target.checked);
+            if (e.target.checked) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        });
+
+        const refreshInterval = document.getElementById('refresh-interval');
+        if (refreshInterval) refreshInterval.addEventListener('input', e => {
+            state.auto_refresh.interval = +e.target.value;
+            if (state.auto_refresh.enabled) {
+                startAutoRefresh(); // Restart with new interval
+            }
+        });
+
         window.addEventListener('resize', () => update("resize"));
         document.getElementById('export-html').addEventListener('click', generateEmbeddableHTML);
         document.getElementById('close-modal').addEventListener('click', () => { document.getElementById('export-modal').style.display = 'none'; });
@@ -622,8 +686,9 @@
 
     function generateEmbeddableHTML() {
         const functionsToEmbed = [
+            showLoadingIndicator, hideLoadingIndicator, startAutoRefresh, stopAutoRefresh,
             loadDataAndInitialize, getLayoutCapacity, calculateLayout, drawMajorityLine, getMobileScale,
-            highlightParty, resetHighlighting, update, 
+            highlightParty, resetHighlighting, update,
             updateLegend, updateTable, updateControls
         ].map(fn => fn.toString()).join('\n\n');
 
@@ -666,6 +731,7 @@
 <div class="parliament-chart-wrapper">
     <h1 id="chart-title"></h1>
     <div id="error-message"></div>
+    <div id="loading-indicator" style="display: none; color: #007bff; font-weight: bold; text-align: center; margin: 10px 0;">Refreshing data...</div>
     <div id="controls" class="parliament-controls"></div>
     <div id="parliament-svg-container"><svg id="parliament-chart"></svg></div>
     <div id="legend-container" class="parliament-legend"></div>
@@ -678,6 +744,7 @@
     let PARTY_COLORS = {};
     let state = ${JSON.stringify(state)};
     state.animation_duration = 0; // Disable animations for embeds
+    let refreshIntervalId = null;
 
     const svg = d3.select("#parliament-chart");
     const chartGroup = svg.append("g");
@@ -688,6 +755,9 @@
 
     // --- INITIALIZE EMBED ---
     loadDataAndInitialize();
+    if (state.auto_refresh && state.auto_refresh.enabled) {
+        startAutoRefresh();
+    }
     window.addEventListener('resize', () => update("resize"));
 <\/script>
 </body>
