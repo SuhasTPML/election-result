@@ -145,6 +145,8 @@
     const CHART_TITLE = "Election Results"; 
 
     // --- GLOBAL VARIABLES ---
+    // Indicates if code runs as exported embed (false in builder)
+    const IS_EXPORT_EMBED = false;
     let ELECTION_DATA = { years: [], parties: [] };
     let PARTY_COLORS = {};
     let state = {
@@ -442,15 +444,16 @@
         };
         const { positions, seatRadius } = calculateLayout(totalSeats, baseHeight, scaledConfig);
         svg.attr("width", "100%").attr("height", "100%");
-        const padding = 30, textPadding = 10;
+        // Reduce bottom padding when exporting to minimize empty space below the arc
+        const paddingTop = 30, paddingRight = 30, paddingBottom = (IS_EXPORT_EMBED ? 8 : 30), paddingLeft = 30, textPadding = 10;
         let minX = 0, maxX = 0, minY = 0, maxY = 0;
         if (positions.length > 0) {
             const xPositions = positions.map(p => p.x);
             const yPositions = positions.map(p => p.y);
-            minX = Math.min(...xPositions) - seatRadius - padding;
-            maxX = Math.max(...xPositions) + seatRadius + padding;
-            minY = Math.min(...yPositions) - seatRadius - padding - textPadding;
-            maxY = Math.max(...yPositions) + seatRadius + padding;
+            minX = Math.min(...xPositions) - seatRadius - paddingLeft;
+            maxX = Math.max(...xPositions) + seatRadius + paddingRight;
+            minY = Math.min(...yPositions) - seatRadius - paddingTop - textPadding;
+            maxY = Math.max(...yPositions) + seatRadius + paddingBottom;
         } else { minX = -width/2; maxX = width/2; minY = -baseHeight/2 - textPadding; maxY = baseHeight/2; }
 
         // Ensure the majority label is within the viewBox (prevents clipping at 50%)
@@ -738,6 +741,8 @@
     <div id="table-container" class="parliament-table-container"></div>
 </div>
 <script>
+    // Running in exported embed mode
+    const IS_EXPORT_EMBED = true;
     const GOOGLE_SHEET_URL = ${JSON.stringify(GOOGLE_SHEET_URL)};
     const CHART_TITLE = ${JSON.stringify(CHART_TITLE)};
     let ELECTION_DATA = { years: [], parties: [] };
