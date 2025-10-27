@@ -63,7 +63,18 @@
         <div class="setting-group">
             <h3>Embed Settings</h3>
             <label class="label"><span>Original URL</span><input type="text" id="embed-source-url" placeholder="https://example.com/bihar_results" style="width: 60%"></label>
-            <button id="export-div-embed" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #e8f0fe; border: 1px solid #c6dafc; border-radius: 6px; font-size: 16px; margin-top: 6px;">Copy Div + Script Embed</button>
+            <div style="display:flex; gap:8px; flex-wrap: wrap; align-items: center; margin: 8px 0;">
+                <span class="label" style="min-width: 110px;">Desktop Size</span>
+                <input type="number" id="embed-desktop-width" min="200" step="1" value="791" style="width: 90px;"> x
+                <input type="number" id="embed-desktop-height" min="200" step="1" value="746" style="width: 90px;"> px
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap: wrap; align-items: center; margin: 8px 0;">
+                <span class="label" style="min-width: 110px;">Mobile Size</span>
+                <input type="number" id="embed-mobile-width" min="200" step="1" value="372" style="width: 90px;"> x
+                <input type="number" id="embed-mobile-height" min="200" step="1" value="617" style="width: 90px;"> px
+            </div>
+            <button id="export-div-embed" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #e8f0fe; border: 1px solid #c6dafc; border-radius: 6px; font-size: 16px; margin-top: 6px;">Copy Auto‑Sizing Div + Script</button>
+            <button id="export-fixed-div-embed" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; font-size: 16px; margin-top: 6px;">Copy Fixed‑Size Div + CSS</button>
         </div>
         <div class="setting-group">
             <h3>Seat Size</h3>
@@ -691,6 +702,8 @@
         document.getElementById('export-html').addEventListener('click', generateEmbeddableHTML);
         const exportDivBtn = document.getElementById('export-div-embed');
         if (exportDivBtn) exportDivBtn.addEventListener('click', generateDivEmbedSnippet);
+        const exportFixedDivBtn = document.getElementById('export-fixed-div-embed');
+        if (exportFixedDivBtn) exportFixedDivBtn.addEventListener('click', generateFixedDivEmbedSnippet);
         document.getElementById('close-modal').addEventListener('click', () => { document.getElementById('export-modal').style.display = 'none'; });
         document.getElementById('copy-code').addEventListener('click', () => {
             document.getElementById('exported-code').select();
@@ -707,6 +720,24 @@
                 localStorage.setItem(embedSrcKey, (e.target.value || '').trim());
             });
         }
+        // Load/save fixed sizes
+        const dW = document.getElementById('embed-desktop-width');
+        const dH = document.getElementById('embed-desktop-height');
+        const mW = document.getElementById('embed-mobile-width');
+        const mH = document.getElementById('embed-mobile-height');
+        const keys = { dW: 'parliament_embed_dw', dH: 'parliament_embed_dh', mW: 'parliament_embed_mw', mH: 'parliament_embed_mh' };
+        try {
+            if (localStorage.getItem(keys.dW)) dW.value = +localStorage.getItem(keys.dW);
+            if (localStorage.getItem(keys.dH)) dH.value = +localStorage.getItem(keys.dH);
+            if (localStorage.getItem(keys.mW)) mW.value = +localStorage.getItem(keys.mW);
+            if (localStorage.getItem(keys.mH)) mH.value = +localStorage.getItem(keys.mH);
+        } catch(_) {}
+        [dW,dH,mW,mH].forEach((el, idx) => {
+            if (!el) return;
+            const map = [keys.dW, keys.dH, keys.mW, keys.mH];
+            const k = map[idx];
+            el.addEventListener('input', e => { try { localStorage.setItem(k, String(Math.max(1, +e.target.value||0))); } catch(_) {} });
+        });
     }
 
     function generateEmbeddableHTML() {
@@ -832,6 +863,37 @@
   w.addEventListener('message',function(e){ try{ if(!e||!e.data||e.data.type!=='parliament-embed-size') return; if(allowed.indexOf(e.origin)===-1) return; if(typeof e.data.height==='number') setH(e.data.height); }catch(_){} });
 })(document, window);<\/script>`;
 
+        const ta = document.getElementById('exported-code');
+        ta.value = snippet;
+        document.getElementById('export-modal').style.display = 'flex';
+    }
+
+    function generateFixedDivEmbedSnippet() {
+        const input = document.getElementById('embed-source-url');
+        const src = (input && input.value && input.value.trim()) || window.location.href;
+        const dW = Math.max(1, +(document.getElementById('embed-desktop-width') ? document.getElementById('embed-desktop-width').value : 791));
+        const dH = Math.max(1, +(document.getElementById('embed-desktop-height') ? document.getElementById('embed-desktop-height').value : 746));
+        const mW = Math.max(1, +(document.getElementById('embed-mobile-width') ? document.getElementById('embed-mobile-width').value : 372));
+        const mH = Math.max(1, +(document.getElementById('embed-mobile-height') ? document.getElementById('embed-mobile-height').value : 617));
+        const uid = 'pf-' + Math.random().toString(36).slice(2,8);
+        const className = 'parliament-embed-fixed-' + uid;
+        const snippet = `
+<div class="${className}">
+  <iframe
+    src="${src}"
+    title="Parliament Chart"
+    loading="lazy"
+    scrolling="no"
+    allowfullscreen
+  ></iframe>
+</div>
+<style>
+  .${className} { width: ${dW}px; height: ${dH}px; margin: 0 auto; }
+  .${className} iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; background: #fff; display: block; overflow: hidden; }
+  @media (max-width: 768px) {
+    .${className} { width: ${mW}px; height: ${mH}px; }
+  }
+</style>`;
         const ta = document.getElementById('exported-code');
         ta.value = snippet;
         document.getElementById('export-modal').style.display = 'flex';
