@@ -791,30 +791,7 @@
         } catch (e) { /* noop */ }
     }
 
-    function generateDivEmbedSnippet() {
-        const input = document.getElementById('embed-source-url');
-        const src = (input && input.value && input.value.trim()) || window.location.href;
-        let origin = '';
-        try { origin = new URL(src).origin; } catch (_) { origin = ''; }
-        const containerId = 'parliament-embed-container';
-        const snippet = `
-<div id="${containerId}"></div>
-<script>(function(d,w){
-  var src=${JSON.stringify(src)};
-  var allowed=[${origin ? JSON.stringify(origin) : 'new URL(src, location.href).origin'}];
-  var c=d.getElementById(${JSON.stringify(containerId)})||d.body.appendChild(Object.assign(d.createElement('div'),{id:${JSON.stringify(containerId)}}));
-  var f=d.createElement('iframe');
-  f.src=src; f.scrolling='no'; f.loading='lazy'; f.allowFullscreen=true;
-  f.style.cssText='width:100%;border:0;border-radius:12px;background:#fff;overflow:hidden;display:block;';
-  c.appendChild(f);
-  var rafId=0; function setH(h){ if(rafId) cancelAnimationFrame(rafId); rafId=requestAnimationFrame(function(){ f.style.height=Math.max(0,Math.ceil(h))+"px"; }); }
-  w.addEventListener('message',function(e){ try{ if(!e||!e.data||e.data.type!=='parliament-embed-size') return; if(allowed.indexOf(e.origin)===-1) return; if(typeof e.data.height==='number') setH(e.data.height); }catch(_){} });
-})(document, window);<\/script>`;
-
-        const ta = document.getElementById('exported-code');
-        ta.value = snippet;
-        document.getElementById('export-modal').style.display = 'flex';
-    }
+    
     try {
         const ro = new ResizeObserver(() => postEmbedSize('resize-observer'));
         ro.observe(document.body);
@@ -834,6 +811,29 @@
 </html>`;
         
         document.getElementById('exported-code').value = htmlTemplate.replace(/^\s*\n/gm, '');
+        document.getElementById('export-modal').style.display = 'flex';
+    }
+
+    function generateDivEmbedSnippet() {
+        const input = document.getElementById('embed-source-url');
+        const src = (input && input.value && input.value.trim()) || window.location.href;
+        const containerId = 'parliament-embed-container';
+        const snippet = `
+<div id="${containerId}"></div>
+<script>(function(d,w){
+  var src=${JSON.stringify(src)};
+  var allowed=[(function(){try{return new URL(src, location.href).origin;}catch(e){return location.origin;}})()];
+  var c=d.getElementById(${JSON.stringify(containerId)})||d.body.appendChild((function(){var x=d.createElement('div'); x.id=${JSON.stringify(containerId)}; return x;})());
+  var f=d.createElement('iframe');
+  f.src=src; f.scrolling='no'; f.loading='lazy'; f.allowFullscreen=true;
+  f.style.cssText='width:100%;border:0;border-radius:12px;background:#fff;overflow:hidden;display:block;';
+  c.appendChild(f);
+  var rafId=0; function setH(h){ if(rafId) cancelAnimationFrame(rafId); rafId=requestAnimationFrame(function(){ f.style.height=Math.max(0,Math.ceil(h))+"px"; }); }
+  w.addEventListener('message',function(e){ try{ if(!e||!e.data||e.data.type!=='parliament-embed-size') return; if(allowed.indexOf(e.origin)===-1) return; if(typeof e.data.height==='number') setH(e.data.height); }catch(_){} });
+})(document, window);<\/script>`;
+
+        const ta = document.getElementById('exported-code');
+        ta.value = snippet;
         document.getElementById('export-modal').style.display = 'flex';
     }
 
