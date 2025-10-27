@@ -61,6 +61,11 @@
             <input type="range" id="inner-radius" min="0" max="90" value="30">
         </div>
         <div class="setting-group">
+            <h3>Embed Settings</h3>
+            <label class="label"><span>Original URL</span><input type="text" id="embed-source-url" placeholder="https://example.com/bihar_results" style="width: 60%"></label>
+            <button id="export-div-embed" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #e8f0fe; border: 1px solid #c6dafc; border-radius: 6px; font-size: 16px; margin-top: 6px;">Copy Div + Script Embed</button>
+        </div>
+        <div class="setting-group">
             <h3>Seat Size</h3>
             <label><input type="radio" name="seat-size-mode" value="auto" checked> Auto (No Overlap)</label>
             <label><input type="radio" name="seat-size-mode" value="fixed"> Fixed</label>
@@ -550,6 +555,10 @@
         updateLegend(partiesForYear);
         updateTable();
         updateControls();
+        // Notify parent iframe of size changes when exported
+        if (IS_EXPORT_EMBED && typeof window.postEmbedSize === 'function') {
+            try { window.postEmbedSize('update'); } catch (_) {}
+        }
     }
     
     function updateLegend(parties) {
@@ -680,11 +689,24 @@
 
         window.addEventListener('resize', () => update("resize"));
         document.getElementById('export-html').addEventListener('click', generateEmbeddableHTML);
+        const exportDivBtn = document.getElementById('export-div-embed');
+        if (exportDivBtn) exportDivBtn.addEventListener('click', generateDivEmbedSnippet);
         document.getElementById('close-modal').addEventListener('click', () => { document.getElementById('export-modal').style.display = 'none'; });
         document.getElementById('copy-code').addEventListener('click', () => {
             document.getElementById('exported-code').select();
             navigator.clipboard.writeText(document.getElementById('exported-code').value).then(() => alert('Copied to clipboard!')).catch(err => console.error('Failed to copy: ', err));
         });
+
+        // Load/save embed source URL
+        const embedSrcKey = 'parliament_embed_src';
+        const embedInput = document.getElementById('embed-source-url');
+        if (embedInput) {
+            const saved = localStorage.getItem(embedSrcKey);
+            if (saved) embedInput.value = saved;
+            embedInput.addEventListener('input', e => {
+                localStorage.setItem(embedSrcKey, (e.target.value || '').trim());
+            });
+        }
     }
 
     function generateEmbeddableHTML() {
@@ -731,7 +753,7 @@
     <style>${styles}<\/style>
 </head>
 <body>
-<div class="parliament-chart-wrapper">
+<div class="parliament-chart-wrapper" id="parliament-embed-root">
     <h1 id="chart-title"></h1>
     <div id="error-message"></div>
     <div id="loading-indicator" style="display: none; color: #007bff; font-weight: bold; text-align: center; margin: 10px 0;">Refreshing data...</div>
@@ -757,6 +779,49 @@
     const labelsGroup = svg.append("g").attr("class", "labels-group");
 
     ${functionsToEmbed}
+
+    // --- IFRAME RESIZE MESSAGING ---
+    function postEmbedSize(reason = 'manual') {
+        try {
+            const root = document.getElementById('parliament-embed-root') || document.body;
+            const rect = root.getBoundingClientRect();
+            const height = Math.ceil(rect.height);
+            const width = Math.ceil(rect.width);
+            parent.postMessage({ type: 'parliament-embed-size', height, width, reason }, '*');
+        } catch (e) { /* noop */ }
+    }
+
+    function generateDivEmbedSnippet() {
+        const input = document.getElementById('embed-source-url');
+        const src = (input && input.value && input.value.trim()) || window.location.href;
+        let origin = '';
+        try { origin = new URL(src).origin; } catch (_) { origin = ''; }
+        const containerId = 'parliament-embed-container';
+        const snippet = `
+<div id="${containerId}"></div>
+<script>(function(d,w){
+  var src=${JSON.stringify(src)};
+  var allowed=[${origin ? JSON.stringify(origin) : 'new URL(src, location.href).origin'}];
+  var c=d.getElementById(${JSON.stringify(containerId)})||d.body.appendChild(Object.assign(d.createElement('div'),{id:${JSON.stringify(containerId)}}));
+  var f=d.createElement('iframe');
+  f.src=src; f.scrolling='no'; f.loading='lazy'; f.allowFullscreen=true;
+  f.style.cssText='width:100%;border:0;border-radius:12px;background:#fff;overflow:hidden;display:block;';
+  c.appendChild(f);
+  var rafId=0; function setH(h){ if(rafId) cancelAnimationFrame(rafId); rafId=requestAnimationFrame(function(){ f.style.height=Math.max(0,Math.ceil(h))+"px"; }); }
+  w.addEventListener('message',function(e){ try{ if(!e||!e.data||e.data.type!=='parliament-embed-size') return; if(allowed.indexOf(e.origin)===-1) return; if(typeof e.data.height==='number') setH(e.data.height); }catch(_){} });
+})(document, window);<\/script>`;
+
+        const ta = document.getElementById('exported-code');
+        ta.value = snippet;
+        document.getElementById('export-modal').style.display = 'flex';
+    }
+    try {
+        const ro = new ResizeObserver(() => postEmbedSize('resize-observer'));
+        ro.observe(document.body);
+    } catch (_) { /* ignore if ResizeObserver not available */ }
+    window.addEventListener('load', () => postEmbedSize('load'));
+    window.addEventListener('resize', () => postEmbedSize('window-resize'));
+    setTimeout(() => postEmbedSize('init'), 0);
 
     // --- INITIALIZE EMBED ---
     loadDataAndInitialize();
