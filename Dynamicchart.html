@@ -73,6 +73,7 @@
                 <input type="number" id="embed-mobile-width" min="200" step="1" value="372" style="width: 90px;"> x
                 <input type="number" id="embed-mobile-height" min="200" step="1" value="617" style="width: 90px;"> px
             </div>
+            <label class="label" style="margin: 8px 0;"><span>Iframe Background</span><input type="color" id="embed-bg-color" value="#ffffff" style="width: 60px; height: 28px; padding: 0; border: 1px solid #ccc; border-radius: 4px;"></label>
             <button id="export-div-embed" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #e8f0fe; border: 1px solid #c6dafc; border-radius: 6px; font-size: 16px; margin-top: 6px;">Copy Auto‑Sizing Div + Script</button>
             <button id="export-fixed-div-embed" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; font-size: 16px; margin-top: 6px;">Copy Fixed‑Size Div + CSS</button>
         </div>
@@ -738,6 +739,19 @@
             const k = map[idx];
             el.addEventListener('input', e => { try { localStorage.setItem(k, String(Math.max(1, +e.target.value||0))); } catch(_) {} });
         });
+
+        // Load/save iframe background color
+        const embedBgKey = 'parliament_embed_bg';
+        const bgInput = document.getElementById('embed-bg-color');
+        if (bgInput) {
+            try {
+                const savedBg = localStorage.getItem(embedBgKey);
+                if (savedBg) bgInput.value = savedBg;
+            } catch(_) {}
+            bgInput.addEventListener('input', e => {
+                try { localStorage.setItem(embedBgKey, (e.target.value || '#ffffff')); } catch(_) {}
+            });
+        }
     }
 
     function generateEmbeddableHTML() {
@@ -848,16 +862,20 @@
     function generateDivEmbedSnippet() {
         const input = document.getElementById('embed-source-url');
         const src = (input && input.value && input.value.trim()) || window.location.href;
+        const bgInput = document.getElementById('embed-bg-color');
+        const bg = (bgInput && bgInput.value) ? bgInput.value : '#ffffff';
         const containerId = 'parliament-embed-container';
         const snippet = `
 <div id="${containerId}"></div>
 <script>(function(d,w){
   var src=${JSON.stringify(src)};
+  var bg=${JSON.stringify('${bg}').replace('"${bg}"', JSON.stringify(bg))};
   var allowed=[(function(){try{return new URL(src, location.href).origin;}catch(e){return location.origin;}})()];
   var c=d.getElementById(${JSON.stringify(containerId)})||d.body.appendChild((function(){var x=d.createElement('div'); x.id=${JSON.stringify(containerId)}; return x;})());
   var f=d.createElement('iframe');
   f.src=src; f.scrolling='no'; f.loading='lazy'; f.allowFullscreen=true;
-  f.style.cssText='width:100%;border:0;border-radius:12px;background:#fff;overflow:hidden;display:block;';
+  f.style.cssText='width:100%;border:0;border-radius:12px;background:'+bg+';overflow:hidden;display:block;';
+  try{ c.style.background=bg; c.style.borderRadius='12px'; }catch(_){ }
   c.appendChild(f);
   var rafId=0; function setH(h){ if(rafId) cancelAnimationFrame(rafId); rafId=requestAnimationFrame(function(){ f.style.height=Math.max(0,Math.ceil(h))+"px"; }); }
   w.addEventListener('message',function(e){ try{ if(!e||!e.data||e.data.type!=='parliament-embed-size') return; if(allowed.indexOf(e.origin)===-1) return; if(typeof e.data.height==='number') setH(e.data.height); }catch(_){} });
@@ -871,6 +889,8 @@
     function generateFixedDivEmbedSnippet() {
         const input = document.getElementById('embed-source-url');
         const src = (input && input.value && input.value.trim()) || window.location.href;
+        const bgInput = document.getElementById('embed-bg-color');
+        const bg = (bgInput && bgInput.value) ? bgInput.value : '#ffffff';
         const dW = Math.max(1, +(document.getElementById('embed-desktop-width') ? document.getElementById('embed-desktop-width').value : 791));
         const dH = Math.max(1, +(document.getElementById('embed-desktop-height') ? document.getElementById('embed-desktop-height').value : 746));
         const mW = Math.max(1, +(document.getElementById('embed-mobile-width') ? document.getElementById('embed-mobile-width').value : 372));
@@ -888,8 +908,8 @@
   ></iframe>
 </div>
 <style>
-  .${className} { width: ${dW}px; height: ${dH}px; margin: 0 auto; }
-  .${className} iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; background: #fff; display: block; overflow: hidden; }
+  .${className} { width: ${dW}px; height: ${dH}px; margin: 0 auto; background: ${bg}; border-radius: 12px; }
+  .${className} iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; background: ${bg}; display: block; overflow: hidden; }
   @media (max-width: 768px) {
     .${className} { width: ${mW}px; height: ${mH}px; }
   }
