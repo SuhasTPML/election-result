@@ -891,17 +891,19 @@ function convertApiJsonToCsv(jsonResponse) {
 
         const table = tableContainer.append("table");
 
-        // Get current year
+        // Get current year and latest year
         const currentYear = ELECTION_DATA.years[state.current_election_index];
+        const latestYear = ELECTION_DATA.years[ELECTION_DATA.years.length - 1];
+        const isLatestYear = currentYear === latestYear;
 
-        // Determine if we should show comparison column
-        // Show comparison only if current year is not 2020
-        const showComparison = currentYear !== "2020";
-
-        // Define headers dynamically
-        const headers = [state.first_column_label || "Party", "Wins + Leads", "Wins", "Leads"];
-        if (showComparison) {
-            headers.push("2020 Results");
+        // Define headers based on whether we're viewing the latest year
+        let headers;
+        if (isLatestYear) {
+            // Latest year: show full detailed table with comparison
+            headers = [state.first_column_label || "Party", "Wins + Leads", "Wins", "Leads", "2020 Results"];
+        } else {
+            // Historical year: show simplified table
+            headers = [state.first_column_label || "Party", "Wins"];
         }
 
         table.append("thead").append("tr").selectAll("th")
@@ -925,23 +927,27 @@ function convertApiJsonToCsv(jsonResponse) {
             const wins = currentYearData ? currentYearData.seats : 0;
             const leads = currentYearData ? currentYearData.leads : 0;
 
-            // Wins + Leads (total)
-            row.append("td").text(wins + leads);
+            if (isLatestYear) {
+                // Latest year: show full table
+                // Wins + Leads (total)
+                row.append("td").text(wins + leads);
 
-            // Wins
-            row.append("td").text(wins);
+                // Wins
+                row.append("td").text(wins);
 
-            // Leads
-            row.append("td").text(leads);
+                // Leads
+                row.append("td").text(leads);
 
-            // 2020 results (only if showing comparison)
-            if (showComparison) {
+                // 2020 results
                 const year2020Data = partyData.yearly_results.find(yr => yr.year === "2020");
                 if (year2020Data) {
                     row.append("td").text(year2020Data.seats + year2020Data.leads);
                 } else {
                     row.append("td").text("-"); // Use dash if 2020 data not available
                 }
+            } else {
+                // Historical year: show only wins
+                row.append("td").text(wins);
             }
         });
     }
