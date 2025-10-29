@@ -868,14 +868,25 @@ function convertApiJsonToCsv(jsonResponse) {
         const tableContainer = d3.select("#table-container");
         tableContainer.html("");
         if (ELECTION_DATA.parties.length === 0) return;
-        
+
         const table = tableContainer.append("table");
-        
-        // Define headers: name column label, Wins + Leads, Wins, Leads, 2020 results
-        const headers = [state.first_column_label || "Party", "Wins + Leads", "Wins", "Leads", "2020 Results"];
+
+        // Get current year
+        const currentYear = ELECTION_DATA.years[state.current_election_index];
+
+        // Determine if we should show comparison column
+        // Show comparison only if current year is not 2020
+        const showComparison = currentYear !== "2020";
+
+        // Define headers dynamically
+        const headers = [state.first_column_label || "Party", "Wins + Leads", "Wins", "Leads"];
+        if (showComparison) {
+            headers.push("2020 Results");
+        }
+
         table.append("thead").append("tr").selectAll("th")
             .data(headers).join("th").text(d => d);
-        
+
         const rows = table.append("tbody").selectAll("tr").data(ELECTION_DATA.parties).join("tr")
             .style("cursor", "pointer")
             .on("mouseover", (event, d) => highlightParty(d.party, PARTY_COLORS[d.party]))
@@ -883,33 +894,34 @@ function convertApiJsonToCsv(jsonResponse) {
 
         rows.each(function(partyData) {
             const row = d3.select(this);
-            
+
             // Party name cell with color swatch
             const nameCell = row.append("td").attr("class", "party-name");
             nameCell.append("div").attr("class", "color-swatch").style("background-color", PARTY_COLORS[partyData.party]);
             nameCell.append("span").text(partyData.party);
 
             // Get current year data
-            const currentYear = ELECTION_DATA.years[state.current_election_index];
             const currentYearData = partyData.yearly_results.find(yr => yr.year === currentYear);
             const wins = currentYearData ? currentYearData.seats : 0;
             const leads = currentYearData ? currentYearData.leads : 0;
-            
+
             // Wins + Leads (total)
             row.append("td").text(wins + leads);
-            
+
             // Wins
             row.append("td").text(wins);
-            
+
             // Leads
             row.append("td").text(leads);
-            
-            // 2020 results
-            const year2020Data = partyData.yearly_results.find(yr => yr.year === "2020");
-            if (year2020Data) {
-                row.append("td").text(year2020Data.seats + year2020Data.leads);
-            } else {
-                row.append("td").text("-"); // Use dash if 2020 data not available
+
+            // 2020 results (only if showing comparison)
+            if (showComparison) {
+                const year2020Data = partyData.yearly_results.find(yr => yr.year === "2020");
+                if (year2020Data) {
+                    row.append("td").text(year2020Data.seats + year2020Data.leads);
+                } else {
+                    row.append("td").text("-"); // Use dash if 2020 data not available
+                }
             }
         });
     }
