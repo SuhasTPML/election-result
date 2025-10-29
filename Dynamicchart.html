@@ -69,8 +69,7 @@
                 <input type="number" id="embed-desktop-height" min="200" step="1" value="746" style="width: 90px;"> px
             </div>
             <div style="display:flex; gap:8px; flex-wrap: wrap; align-items: center; margin: 8px 0;">
-                <span class="label" style="min-width: 110px;">Mobile Size</span>
-                <input type="number" id="embed-mobile-width" min="200" step="1" value="372" style="width: 90px;"> x
+                <span class="label" style="min-width: 110px;">Mobile Height</span>
                 <input type="number" id="embed-mobile-height" min="200" step="1" value="617" style="width: 90px;"> px
             </div>
             <label class="label" style="margin: 8px 0;"><span>Iframe Background</span><input type="color" id="embed-bg-color" value="#ffffff" style="width: 60px; height: 28px; padding: 0; border: 1px solid #ccc; border-radius: 4px;"></label>
@@ -1030,18 +1029,16 @@ function convertApiJsonToCsv(jsonResponse) {
         // Load/save fixed sizes
         const dW = document.getElementById('embed-desktop-width');
         const dH = document.getElementById('embed-desktop-height');
-        const mW = document.getElementById('embed-mobile-width');
         const mH = document.getElementById('embed-mobile-height');
-        const keys = { dW: 'parliament_embed_dw', dH: 'parliament_embed_dh', mW: 'parliament_embed_mw', mH: 'parliament_embed_mh' };
+        const keys = { dW: 'parliament_embed_dw', dH: 'parliament_embed_dh', mH: 'parliament_embed_mh' };
         try {
             if (localStorage.getItem(keys.dW)) dW.value = +localStorage.getItem(keys.dW);
             if (localStorage.getItem(keys.dH)) dH.value = +localStorage.getItem(keys.dH);
-            if (localStorage.getItem(keys.mW)) mW.value = +localStorage.getItem(keys.mW);
             if (localStorage.getItem(keys.mH)) mH.value = +localStorage.getItem(keys.mH);
         } catch(_) {}
-        [dW,dH,mW,mH].forEach((el, idx) => {
+        [dW,dH,mH].forEach((el, idx) => {
             if (!el) return;
-            const map = [keys.dW, keys.dH, keys.mW, keys.mH];
+            const map = [keys.dW, keys.dH, keys.mH];
             const k = map[idx];
             el.addEventListener('input', e => { try { localStorage.setItem(k, String(Math.max(1, +e.target.value||0))); } catch(_) {} });
         });
@@ -1373,7 +1370,6 @@ function convertApiJsonToCsv(jsonResponse) {
         const bg = (bgInput && bgInput.value) ? bgInput.value : '#ffffff';
         const dW = Math.max(1, +(document.getElementById('embed-desktop-width') ? document.getElementById('embed-desktop-width').value : 791));
         const dH = Math.max(1, +(document.getElementById('embed-desktop-height') ? document.getElementById('embed-desktop-height').value : 746));
-        const mW = Math.max(1, +(document.getElementById('embed-mobile-width') ? document.getElementById('embed-mobile-width').value : 372));
         const mH = Math.max(1, +(document.getElementById('embed-mobile-height') ? document.getElementById('embed-mobile-height').value : 617));
         const uid = 'pf-' + Math.random().toString(36).slice(2,8);
         const className = 'parliament-embed-fixed-' + uid;
@@ -1391,7 +1387,7 @@ function convertApiJsonToCsv(jsonResponse) {
   .${className} { width: ${dW}px; height: ${dH}px; margin: 0 auto; background: ${bg}; border-radius: 12px; }
   .${className} iframe { width: 100%; height: 100%; border: 0; border-radius: 12px; background: ${bg}; display: block; overflow: hidden; }
   @media (max-width: 768px) {
-    .${className} { width: ${mW}px; height: ${mH}px; }
+    .${className} { width: 100%; max-width: 100vw; height: ${mH}px; padding: 0 10px; box-sizing: border-box; }
   }
 </style>`;
         const ta = document.getElementById('exported-code');
