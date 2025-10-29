@@ -121,6 +121,15 @@
             <label><span>Text Color</span><input type="color" id="total-text-color" value="#333333"></label>
         </div>
         <div class="setting-group">
+            <h3>Chart Heading</h3>
+            <label><span>Show Heading</span><input type="checkbox" id="heading-enabled" checked></label>
+            <div id="heading-options">
+                <label><span>Heading Text</span><input type="text" id="heading-text" value="Election Results" placeholder="e.g., Election Results"></label>
+                <label><span>Text Size (px)</span><input type="number" id="heading-text-size" value="32" min="12" max="72"></label>
+                <label><span>Text Color</span><input type="color" id="heading-text-color" value="#333333"></label>
+            </div>
+        </div>
+        <div class="setting-group">
             <h3>Auto Refresh</h3>
             <label><span>Enable Auto Refresh</span><input type="checkbox" id="auto-refresh-enabled"></label>
             <div id="auto-refresh-options" class="hidden">
@@ -355,6 +364,7 @@ function convertApiJsonToCsv(jsonResponse) {
         majority_line: { enabled: false, label: "Majority", position: 50, color: "#000000", width: 1.5 },
         legend: { enabled: true, orientation: 'horizontal', font_size: 14, color: '#333333' },
         total_text: { size: 28, color: '#333333' },
+        heading: { enabled: true, text: 'Election Results', size: 32, color: '#333333' },
         animation_duration: 800,
         auto_refresh: { enabled: false, interval: 30 }
     };
@@ -392,10 +402,25 @@ function convertApiJsonToCsv(jsonResponse) {
         }));
         PARTY_COLORS = { ...SAMPLE_PARTY_COLORS };
         state.current_election_index = ELECTION_DATA.years.length - 1;
-        document.getElementById('chart-title').textContent = CHART_TITLE;
+        updateHeading();
         updateControls();
         update();
         const err = document.getElementById('error-message'); if (err) err.textContent = '';
+    }
+
+    // Update heading display based on state settings
+    function updateHeading() {
+        const headingElement = document.getElementById('chart-title');
+        if (!headingElement) return;
+
+        if (state.heading.enabled) {
+            headingElement.textContent = state.heading.text || 'Election Results';
+            headingElement.style.display = 'block';
+            headingElement.style.fontSize = state.heading.size + 'px';
+            headingElement.style.color = state.heading.color;
+        } else {
+            headingElement.style.display = 'none';
+        }
     }
 
     // --- AUTO-REFRESH FUNCTIONS ---
@@ -583,7 +608,7 @@ function convertApiJsonToCsv(jsonResponse) {
             ELECTION_DATA.parties = data.parties;
             // PARTY_COLORS already set in loadFromGoogleSheets
             state.current_election_index = ELECTION_DATA.years.length - 1;
-            document.getElementById('chart-title').textContent = CHART_TITLE;
+            updateHeading();
             console.log('[Parliament Chart] Successfully loaded live data');
             updateControls();
             update();
@@ -974,6 +999,24 @@ function convertApiJsonToCsv(jsonResponse) {
         const fcl = document.getElementById('first-column-label'); if (fcl) fcl.addEventListener('input', e => { state.first_column_label = (e.target.value || 'Party'); const usingSample = document.getElementById('use-sample-preview') && document.getElementById('use-sample-preview').checked; if (usingSample) { updateControls(); update(); } else { loadDataAndInitialize(); } });
         const tts = document.getElementById('total-text-size'); if (tts) tts.addEventListener('input', e => { state.total_text.size = +e.target.value; update(); });
         const ttc = document.getElementById('total-text-color'); if (ttc) ttc.addEventListener('input', e => { state.total_text.color = e.target.value; update(); });
+
+        // Heading controls
+        const headingEnabled = document.getElementById('heading-enabled');
+        const headingOptions = document.getElementById('heading-options');
+        if (headingEnabled && headingOptions) {
+            headingEnabled.addEventListener('change', e => {
+                state.heading.enabled = e.target.checked;
+                headingOptions.classList.toggle('hidden', !e.target.checked);
+                updateHeading();
+            });
+        }
+        const headingText = document.getElementById('heading-text');
+        if (headingText) headingText.addEventListener('input', e => { state.heading.text = e.target.value; updateHeading(); });
+        const headingTextSize = document.getElementById('heading-text-size');
+        if (headingTextSize) headingTextSize.addEventListener('input', e => { state.heading.size = +e.target.value; updateHeading(); });
+        const headingTextColor = document.getElementById('heading-text-color');
+        if (headingTextColor) headingTextColor.addEventListener('input', e => { state.heading.color = e.target.value; updateHeading(); });
+
         const sampleToggle = document.getElementById('use-sample-preview');
 
         if (sampleToggle) sampleToggle.addEventListener('change', e => {
@@ -1056,7 +1099,7 @@ function convertApiJsonToCsv(jsonResponse) {
 
     function generateEmbeddableHTML() {
         const functionsToEmbed = [
-            parseCSV, loadFromGoogleSheets,
+            parseCSV, loadFromGoogleSheets, applySampleData, updateHeading,
             showLoadingIndicator, hideLoadingIndicator, startAutoRefresh, stopAutoRefresh,
             loadDataAndInitialize, getLayoutCapacity, calculateLayout, drawMajorityLine, getMobileScale,
             highlightParty, resetHighlighting, update,
