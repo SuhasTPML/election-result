@@ -87,7 +87,6 @@
         </div>
         <div class="setting-group">
             <h3>Data Source</h3>
-            <label><span>Use Live Google Sheets Data</span><input type="checkbox" id="use-live-data"></label>
             <label><span>Preview with Sample Data</span><input type="checkbox" id="use-sample-preview" checked></label>
         </div>
         <div class="setting-group">
@@ -331,7 +330,6 @@ function convertApiJsonToCsv(jsonResponse) {
 }
 
     // --- CONFIGURATION ---
-    const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSYKMbFEb8e0kSBuCpJC_kJK4zYQ7gsTLKWDLqFzb99GiOpg1GkbODIc7HDd5jsTGdpa30HQi1NoAJL/pub?gid=0&single=true&output=csv';
     const CHART_TITLE = "Election Results";
 
     // --- GOOGLE SHEETS API CONFIGURATION ---
@@ -536,91 +534,27 @@ function convertApiJsonToCsv(jsonResponse) {
             return;
         }
 
-        if (useLiveData && useLiveData.checked) {
-            console.log('[Parliament Chart] Loading live data from Google Sheets API...');
+        // Default: Load from Google Sheets API
+        console.log('[Parliament Chart] Loading live data from Google Sheets API...');
 
-            try {
-                const data = await loadFromGoogleSheets();
-                ELECTION_DATA.years = data.years;
-                ELECTION_DATA.parties = data.parties;
-                // PARTY_COLORS already set in loadFromGoogleSheets
-                state.current_election_index = ELECTION_DATA.years.length - 1;
-                document.getElementById('chart-title').textContent = CHART_TITLE;
-                console.log('[Parliament Chart] Successfully loaded live data');
-                updateControls();
-                update();
-                hideLoadingIndicator();
-                const err = document.getElementById('error-message');
-                if (err) err.textContent = '';
-            } catch (error) {
-                console.error('[Parliament Chart] Error loading Google Sheets data:', error);
-                document.getElementById('error-message').textContent =
-                    'Error loading data from Google Sheets API. Using sample data instead.';
-                applySampleData();
-                hideLoadingIndicator();
-            }
-            return;
-        }
-
-        // Default: Load from CSV URL
-        if (!GOOGLE_SHEET_URL || GOOGLE_SHEET_URL === 'PASTE_YOUR_URL_HERE') {
-            document.getElementById('error-message').textContent = 'Error: Please paste your Google Sheet URL into the GOOGLE_SHEET_URL constant in the script.';
-            return;
-        }
-        // FIX: The 'try' block now correctly wraps the entire function body that can throw an error.
         try {
-            const rawData = await d3.csv(GOOGLE_SHEET_URL);
-            
-            // --- DEBUGGING LINES ---
-            console.log("DEBUG: Parsed CSV Columns:", rawData.columns);
-            console.log("DEBUG: First row of data:", rawData[0]);
-            // ------------------------
-
-            if (rawData.length === 0) throw new Error("Sheet is empty or not in the correct format.");
-            
-            const headers = rawData.columns;
-            const nameHeader = headers.find(h => h.toLowerCase() === (state.first_column_label || 'Party').toLowerCase())
-                                || headers.find(h => h.toLowerCase() === 'party');
-            const colorHeader = headers.find(h => h.toLowerCase() === 'color');
-            const yearHeaders = headers.filter(h => h.toLowerCase() !== (nameHeader || 'party').toLowerCase() && h.toLowerCase() !== 'color');
-            const years = [...new Set(yearHeaders.map(h => h.split('_')[0]))].sort();
-            
-            ELECTION_DATA.years = years;
-            ELECTION_DATA.parties = [];
-            
-            rawData.forEach(row => {
-                const partyName = nameHeader ? row[nameHeader] : (row.Party || row.party);
-                const partyColor = colorHeader ? row[colorHeader] : (row.Color || row.color);
-
-                if (!partyName || !partyColor) return;
-
-                PARTY_COLORS[partyName] = partyColor.trim();
-                const partyData = { party: partyName, yearly_results: [] };
-                
-                years.forEach(year => {
-                    partyData.yearly_results.push({
-                        year: year,
-                        seats: parseInt(row[`${year}_Seats`] || 0, 10),
-                        leads: parseInt(row[`${year}_Leads`] || 0, 10)
-                    });
-                });
-                ELECTION_DATA.parties.push(partyData);
-            });
-
-            if (ELECTION_DATA.parties.length === 0) {
-                 throw new Error(`No valid party data found. Check your sheet for '${state.first_column_label || 'Party'}' and 'Color' columns.`);
-            }
-
+            const data = await loadFromGoogleSheets();
+            ELECTION_DATA.years = data.years;
+            ELECTION_DATA.parties = data.parties;
+            // PARTY_COLORS already set in loadFromGoogleSheets
             state.current_election_index = ELECTION_DATA.years.length - 1;
-
             document.getElementById('chart-title').textContent = CHART_TITLE;
+            console.log('[Parliament Chart] Successfully loaded live data');
             updateControls();
             update();
             hideLoadingIndicator();
-
+            const err = document.getElementById('error-message');
+            if (err) err.textContent = '';
         } catch (error) {
-            console.error("Failed to load or parse data:", error);
-            document.getElementById('error-message').textContent = `Error: Could not load data. Please check the URL, ensure headers use underscores (e.g., 2024_Seats), and that the sheet is published. Details: ${error.message}`;
+            console.error('[Parliament Chart] Error loading Google Sheets data:', error);
+            document.getElementById('error-message').textContent =
+                'Error loading data from Google Sheets API. Using sample data instead.';
+            applySampleData();
             hideLoadingIndicator();
         }
     }
@@ -985,22 +919,9 @@ function convertApiJsonToCsv(jsonResponse) {
         const fcl = document.getElementById('first-column-label'); if (fcl) fcl.addEventListener('input', e => { state.first_column_label = (e.target.value || 'Party'); const usingSample = document.getElementById('use-sample-preview') && document.getElementById('use-sample-preview').checked; if (usingSample) { updateControls(); update(); } else { loadDataAndInitialize(); } });
         const tts = document.getElementById('total-text-size'); if (tts) tts.addEventListener('input', e => { state.total_text.size = +e.target.value; update(); });
         const ttc = document.getElementById('total-text-color'); if (ttc) ttc.addEventListener('input', e => { state.total_text.color = e.target.value; update(); });
-        const useLiveData = document.getElementById('use-live-data');
         const sampleToggle = document.getElementById('use-sample-preview');
 
-        if (useLiveData) {
-            useLiveData.addEventListener('change', e => {
-                if (e.target.checked && sampleToggle) {
-                    sampleToggle.checked = false;
-                }
-                loadDataAndInitialize();
-            });
-        }
-
         if (sampleToggle) sampleToggle.addEventListener('change', e => {
-            if (e.target.checked && useLiveData) {
-                useLiveData.checked = false;
-            }
             if (e.target.checked) { applySampleData(); }
             else { loadDataAndInitialize(); }
         });
@@ -1082,6 +1003,7 @@ function convertApiJsonToCsv(jsonResponse) {
 
     function generateEmbeddableHTML() {
         const functionsToEmbed = [
+            parseCSV, loadFromGoogleSheets,
             showLoadingIndicator, hideLoadingIndicator, startAutoRefresh, stopAutoRefresh,
             loadDataAndInitialize, getLayoutCapacity, calculateLayout, drawMajorityLine, getMobileScale,
             highlightParty, resetHighlighting, update,
@@ -1134,10 +1056,183 @@ function convertApiJsonToCsv(jsonResponse) {
     <div id="table-container" class="parliament-table-container"></div>
 </div>
 <script>
+// =====================================================
+// GOOGLE SHEETS API CACHE
+// =====================================================
+if (!window.parliamentChartDataCache) {
+  window.parliamentChartDataCache = {
+    memoryCache: {},
+    pending: {},
+    CACHE_KEY_PREFIX: 'parliamentChart_csv_',
+    CACHE_DURATION: 0 * 1000,
+    VERSION: 'v1',
+
+    getCacheKey: function(url) {
+      return this.CACHE_KEY_PREFIX + this.VERSION + '_' + btoa(url).substring(0, 50);
+    },
+
+    getFromLocalStorage: function(url) {
+      var cacheKey = this.getCacheKey(url);
+      try {
+        var cached = localStorage.getItem(cacheKey);
+        if (!cached) return null;
+        var data = JSON.parse(cached);
+        var now = Date.now();
+        if (data.timestamp && (now - data.timestamp) < this.CACHE_DURATION) {
+          console.log('[Parliament Cache] HIT - localStorage for:', url.substring(0, 60));
+          return data.content;
+        } else {
+          console.log('[Parliament Cache] EXPIRED - Removing stale cache');
+          localStorage.removeItem(cacheKey);
+          return null;
+        }
+      } catch(e) {
+        console.warn('[Parliament Cache] localStorage error:', e);
+        return null;
+      }
+    },
+
+    saveToLocalStorage: function(url, content) {
+      var cacheKey = this.getCacheKey(url);
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          content: content,
+          timestamp: Date.now(),
+          url: url
+        }));
+        console.log('[Parliament Cache] SAVED - Cached for 30 seconds');
+      } catch(e) {
+        console.warn('[Parliament Cache] Save failed, cleaning old cache');
+        this.cleanOldCache();
+      }
+    },
+
+    cleanOldCache: function() {
+      try {
+        var now = Date.now();
+        var keysToRemove = [];
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i);
+          if (key && key.startsWith(this.CACHE_KEY_PREFIX)) {
+            var item = localStorage.getItem(key);
+            if (item) {
+              try {
+                var parsed = JSON.parse(item);
+                if (!parsed.timestamp || (now - parsed.timestamp) > this.CACHE_DURATION) {
+                  keysToRemove.push(key);
+                }
+              } catch(e) {
+                keysToRemove.push(key);
+              }
+            }
+          }
+        }
+        keysToRemove.forEach(function(key){ localStorage.removeItem(key); });
+        if (keysToRemove.length > 0) {
+          console.log('[Parliament Cache] Cleaned', keysToRemove.length, 'old entries');
+        }
+      } catch(e) {
+        console.warn('[Parliament Cache] Clean failed:', e);
+      }
+    },
+
+    fetchCsv: function(url) {
+      if (this.memoryCache[url]) {
+        console.log('[Parliament Cache] HIT - Memory cache');
+        return Promise.resolve(this.memoryCache[url]);
+      }
+
+      var cachedData = this.getFromLocalStorage(url);
+      if (cachedData) {
+        this.memoryCache[url] = cachedData;
+        return Promise.resolve(cachedData);
+      }
+
+      if (this.pending[url]) {
+        console.log('[Parliament Cache] Request already pending, reusing promise');
+        return this.pending[url];
+      }
+
+      var isApiUrl = url.indexOf('sheets.googleapis.com') !== -1 ||
+                     url.indexOf('cloudfront.net') !== -1;
+      console.log('[Parliament Cache] MISS - Fetching from ' + (isApiUrl ? 'Google Sheets API' : 'CSV export'));
+
+      var self = this;
+      this.pending[url] = fetch(url, { cache: 'default' })
+        .then(function(response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return isApiUrl ? response.json() : response.text();
+        })
+        .then(function(data) {
+          var csvText;
+          if (isApiUrl) {
+            csvText = convertApiJsonToCsv(data);
+            console.log('[Parliament Cache] Converted API JSON to CSV format');
+          } else {
+            csvText = data;
+          }
+
+          self.memoryCache[url] = csvText;
+          self.saveToLocalStorage(url, csvText);
+          delete self.pending[url];
+          return csvText;
+        })
+        .catch(function(error) {
+          delete self.pending[url];
+          console.error('[Parliament Cache] Fetch failed:', error);
+          throw error;
+        });
+
+      return this.pending[url];
+    }
+  };
+
+  window.parliamentChartDataCache.cleanOldCache();
+}
+
+// Convert Google Sheets API JSON response to CSV format
+function convertApiJsonToCsv(jsonResponse) {
+  try {
+    var rows = jsonResponse.values;
+    if (!rows || rows.length === 0) {
+      console.warn('[API Converter] No data in API response');
+      return '';
+    }
+
+    var csvLines = [];
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var csvRow = [];
+
+      for (var j = 0; j < row.length; j++) {
+        var cell = row[j] || '';
+        if (cell.indexOf(',') !== -1 || cell.indexOf('"') !== -1 || cell.indexOf('\\n') !== -1) {
+          cell = '"' + cell.replace(/"/g, '""') + '"';
+        }
+        csvRow.push(cell);
+      }
+
+      csvLines.push(csvRow.join(','));
+    }
+
+    return csvLines.join('\\n');
+  } catch(e) {
+    console.error('[API Converter] Error converting JSON to CSV:', e);
+    return '';
+  }
+}
+
     // Running in exported embed mode
     const IS_EXPORT_EMBED = true;
-    const GOOGLE_SHEET_URL = ${JSON.stringify(GOOGLE_SHEET_URL)};
     const CHART_TITLE = ${JSON.stringify(CHART_TITLE)};
+
+    // Google Sheets API Configuration
+    const CLOUDFRONT_DOMAIN = ${JSON.stringify(CLOUDFRONT_DOMAIN)};
+    const SHEET_ID = ${JSON.stringify(SHEET_ID)};
+    const API_KEY = ${JSON.stringify(API_KEY)};
+    const API_BASE = 'https://' + CLOUDFRONT_DOMAIN + '/v4/spreadsheets/' + SHEET_ID + '/values/';
+    const LIVE_RESULTS_API_URL = API_BASE + 'live_election_results?key=' + API_KEY;
+
     let ELECTION_DATA = { years: [], parties: [] };
     let PARTY_COLORS = {};
     let state = ${JSON.stringify(state)};
