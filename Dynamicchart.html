@@ -376,11 +376,11 @@ function convertApiJsonToCsv(jsonResponse) {
 
     // Sample data for preview-only mode (embed will still use Google Sheets)
     const SAMPLE_ELECTION_DATA = {
-        years: ["2020", "2024"],
+        years: ["2020", "2025"],
         parties: [
-            { party: "Alpha", yearly_results: [ { year: "2020", seats: 120, leads: 0 }, { year: "2024", seats: 135, leads: 4 } ] },
-            { party: "Beta",  yearly_results: [ { year: "2020", seats: 100, leads: 0 }, { year: "2024", seats:  95, leads: 2 } ] },
-            { party: "Gamma", yearly_results: [ { year: "2020", seats:  80, leads: 0 }, { year: "2024", seats:  70, leads: 1 } ] }
+            { party: "Alpha", yearly_results: [ { year: "2020", seats: 120, leads: 0 }, { year: "2025", seats: 135, leads: 4 } ] },
+            { party: "Beta",  yearly_results: [ { year: "2020", seats: 100, leads: 0 }, { year: "2025", seats:  95, leads: 2 } ] },
+            { party: "Gamma", yearly_results: [ { year: "2020", seats:  80, leads: 0 }, { year: "2025", seats:  70, leads: 1 } ] }
         ]
     };
     const SAMPLE_PARTY_COLORS = { Alpha: "#1f77b4", Beta: "#ff7f0e", Gamma: "#2ca02c" };
@@ -491,12 +491,32 @@ function convertApiJsonToCsv(jsonResponse) {
                     console.log('[Parliament Chart] Available columns:', Object.keys(rows[0]));
                 }
 
+                // Extract years dynamically from column headers
+                // Look for columns like: 2020_Seats, 2020_Leads, 2025_Seats, 2025_Leads
+                const columnNames = rows.length > 0 ? Object.keys(rows[0]) : [];
+                const yearSet = new Set();
+
+                columnNames.forEach(function(col) {
+                    // Match patterns like "2020_Seats", "2025_Leads", etc.
+                    const match = col.match(/^(\d{4})_(Seats|Leads|seats|leads)$/);
+                    if (match) {
+                        yearSet.add(match[1]); // Add the year part
+                    }
+                });
+
+                // Convert Set to sorted array
+                const years = Array.from(yearSet).sort();
+                console.log('[Parliament Chart] Detected years from sheet:', years);
+
+                if (years.length === 0) {
+                    throw new Error('No year columns found. Expected columns like 2020_Seats, 2025_Seats, etc.');
+                }
+
                 // Convert API CSV format to the yearly_results format
                 const parties = [];
-                const years = ['2020', '2024']; // Years from the API data
 
                 rows.forEach(function(row, index) {
-                    // Expected columns: Party, Color, 2020_Seats, 2020_Leads, 2024_Seats, 2024_Leads
+                    // Expected columns: Party, Color, {year}_Seats, {year}_Leads (e.g., 2020_Seats, 2025_Leads)
                     const partyName = row.Party || row.party || '';
 
                     // Try multiple variations of the Color column name
