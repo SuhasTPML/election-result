@@ -485,16 +485,35 @@ function convertApiJsonToCsv(jsonResponse) {
 
                 console.log('[Parliament Chart] Parsed', rows.length, 'rows from Google Sheets');
 
+                // Debug: log first row to see structure
+                if (rows.length > 0) {
+                    console.log('[Parliament Chart] First row structure:', rows[0]);
+                    console.log('[Parliament Chart] Available columns:', Object.keys(rows[0]));
+                }
+
                 // Convert API CSV format to the yearly_results format
                 const parties = [];
                 const years = ['2020', '2024']; // Years from the API data
 
-                rows.forEach(function(row) {
+                rows.forEach(function(row, index) {
                     // Expected columns: Party, Color, 2020_Seats, 2020_Leads, 2024_Seats, 2024_Leads
                     const partyName = row.Party || row.party || '';
-                    const partyColor = row.Color || row.color || '#808080';
 
-                    if (!partyName) return;
+                    // Try multiple variations of the Color column name
+                    let partyColor = row.Color || row.color || row.COLOR || row.Colour || row.colour;
+
+                    // If still no color found, use a default gray
+                    if (!partyColor || partyColor.trim() === '') {
+                        partyColor = '#808080';
+                        console.warn('[Parliament Chart] No color found for party:', partyName, '- Row:', row);
+                    } else {
+                        partyColor = partyColor.trim();
+                    }
+
+                    if (!partyName) {
+                        console.warn('[Parliament Chart] Skipping row with no party name:', row);
+                        return;
+                    }
 
                     const party = {
                         party: partyName,
@@ -510,11 +529,13 @@ function convertApiJsonToCsv(jsonResponse) {
                         });
                     });
 
+                    console.log('[Parliament Chart] Party loaded:', partyName, 'Color:', partyColor);
                     PARTY_COLORS[partyName] = partyColor;
                     parties.push(party);
                 });
 
                 console.log('[Parliament Chart] Loaded', parties.length, 'parties from Google Sheets');
+                console.log('[Parliament Chart] PARTY_COLORS:', PARTY_COLORS);
 
                 return { years: years, parties: parties };
             })
