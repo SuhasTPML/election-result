@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parliament Chart from Google Sheets</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style id="chart-styles">
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; background-color: #f0f2f5; color: #333; margin: 0; height: 100vh; }
+        .container { display: flex; width: 100%; height: 100%; }
+        .settings-panel { width: 380px; padding: 20px; background-color: #fff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); overflow-y: auto; flex-shrink: 0; height: 100vh; box-sizing: border-box; position: relative; z-index: 2; }
+        .chart-container { position: relative; z-index: 1; }
+        .settings-panel h2 { margin-top: 0; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px; }
+        .setting-group { margin-bottom: 25px; }
+        .setting-group h3 { margin-bottom: 10px; font-size: 1em; color: #555; border-bottom: 1px solid #f0f0f0; padding-bottom: 5px;}
+        .setting-group label, .setting-group .label { display: flex; justify-content: space-between; align-items: center; font-size: 0.9em; width: 100%; margin-bottom: 8px; }
+        .setting-group input[type="range"] { width: 60%; }
+        .setting-group input[type="number"], .setting-group input[type="color"], .setting-group input[type="text"] { padding: 4px; border: 1px solid #ccc; border-radius: 4px; }
+        .setting-group input[type="checkbox"] { transform: scale(1.2); }
+        .hidden { display: none; }
+
+        .chart-container { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px; }
+        #parliament-svg-container { width: 100%; max-width: 900px; }
+        #table-container { width: 100%; max-width: 900px; margin-top: 10px; }
+        .parliament-seat { stroke: #fff; stroke-width: 1px; transition: opacity 0.3s ease, stroke 0.2s ease, stroke-width 0.2s ease; }
+        .parliament-seat.dimmed { opacity: 0.2; }
+        .controls { width: 100%; max-width: 900px; text-align: left; margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 4px;}
+        .controls button { padding: 8px 16px; margin: 0; font-size: 16px; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 4px; cursor: pointer; transition: background-color 0.2s, color 0.2s; flex: 0 0 auto; }
+        .controls button.active { background-color: #333; color: #fff; border-color: #333; }
+        table { width: 100%; border-collapse: collapse; background-color: #fff; border: 1px solid #e0e0e0; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e0e0e0; font-size: 0.9em;}
+        th { background-color: #f8f8f8; font-weight: 600; }
+        .party-name { display: flex; align-items: center; }
+        .color-swatch { width: 15px; height: 15px; border-radius: 3px; margin-right: 10px; display: inline-block; flex-shrink: 0; }
+        .seat-change { font-size: 0.9em; margin-left: 8px; font-weight: bold;}
+        .legend { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; font-size: 0.8em; margin-top: 10px;}
+        .legend-item { display: flex; align-items: center; transition: opacity 0.2s, font-weight 0.2s; }
+        .legend-swatch { margin-right: 5px; flex-shrink: 0; }
+        #table-container tbody tr { transition: opacity 0.2s, background-color 0.2s; }
+        #error-message { color: #c52626; font-weight: bold; }
+        
+        /* Mobile-specific styles */
+        @media (max-width: 768px) {
+            .settings-panel { width: 100%; height: auto; position: fixed; top: 0; left: 0; z-index: 1000; transform: translateX(-100%); transition: transform 0.3s ease; }
+            .settings-panel.mobile-open { transform: translateX(0); }
+            .container { flex-direction: column; }
+            .chart-container { padding: 5px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="settings-panel">
+        <h2>Settings</h2>
+        <div class="setting-group">
+            <h3>Parliament Layout</h3>
+            <label><span>Arc Size (degrees)</span><span id="arc-size-value">180</span></label>
+            <input type="range" id="arc-size" min="90" max="360" value="180">
+            <label><span>Inner Radius (%)</span><span id="inner-radius-value">30</span></label>
+            <input type="range" id="inner-radius" min="0" max="90" value="30">
+        </div>
+        <div class="setting-group">
+            <h3>Embed Settings</h3>
+            <label class="label"><span>Original URL</span><input type="text" id="embed-source-url" placeholder="https://example.com/bihar_results" style="width: 60%"></label>
+            <div style="display:flex; gap:8px; flex-wrap: wrap; align-items: center; margin: 8px 0;">
+                <span class="label" style="min-width: 110px;">Desktop Size</span>
+                <input type="number" id="embed-desktop-width" min="200" step="1" value="791" style="width: 90px;"> x
+                <input type="number" id="embed-desktop-height" min="200" step="1" value="746" style="width: 90px;"> px
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap: wrap; align-items: center; margin: 8px 0;">
+                <span class="label" style="min-width: 110px;">Mobile Size</span>
+                <input type="number" id="embed-mobile-width" min="200" step="1" value="372" style="width: 90px;"> x
+                <input type="number" id="embed-mobile-height" min="200" step="1" value="617" style="width: 90px;"> px
+            </div>
+            <label class="label" style="margin: 8px 0;"><span>Iframe Background</span><input type="color" id="embed-bg-color" value="#ffffff" style="width: 60px; height: 28px; padding: 0; border: 1px solid #ccc; border-radius: 4px;"></label>
+            <button id="export-div-embed" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #e8f0fe; border: 1px solid #c6dafc; border-radius: 6px; font-size: 16px; margin-top: 6px;">Copy Auto‑Sizing Div + Script</button>
+            <button id="export-fixed-div-embed" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; font-size: 16px; margin-top: 6px;">Copy Fixed‑Size Div + CSS</button>
+        </div>
+        <div class="setting-group">
+            <h3>Seat Size</h3>
+            <label><input type="radio" name="seat-size-mode" value="auto" checked> Auto (No Overlap)</label>
+            <label><input type="radio" name="seat-size-mode" value="fixed"> Fixed</label>
+            <div id="fixed-seat-size-container" class="hidden">
+                <label><span>Radius (px)</span><input type="number" id="fixed-seat-radius" value="8" min="1" max="50"></label>
+            </div>
+        </div>
+        <div class="setting-group">
+            <h3>Data Source</h3>
+            <label><span>Use Live Google Sheets Data</span><input type="checkbox" id="use-live-data" checked></label>
+            <label><span>Preview with Sample Data</span><input type="checkbox" id="use-sample-preview"></label>
+        </div>
+        <div class="setting-group">
+            <h3>Column Labels</h3>
+            <label><span>First Column Label</span><input type="text" id="first-column-label" value="Party" placeholder="e.g., Party or Alliance"></label>
+        </div>
+        <div class="setting-group">
+            <h3>Majority Line</h3>
+            <label><span>Show Line</span><input type="checkbox" id="majority-line-enabled"></label>
+            <div id="majority-line-options" class="hidden">
+                <label><span>Label Text</span><input type="text" id="majority-line-label" value="Majority"></label>
+                <label><span>Position (%)</span><input type="number" id="majority-line-position" value="50" min="1" max="100"></label>
+                <label><span>Line Color</span><input type="color" id="majority-line-color" value="#000000"></label>
+                <label><span>Thickness (px)</span><input type="number" id="majority-line-width" value="1.5" min="0.5" step="0.5">
+            </div>
+        </div>
+        <div class="setting-group">
+            <h3>Legend</h3>
+             <label><span>Show Legend</span><input type="checkbox" id="legend-enabled" checked></label>
+             <div id="legend-options">
+                 <label><span>Orientation</span></label>
+                 <div>
+                     <label><input type="radio" name="legend-orientation" value="horizontal" checked> Horizontal</label>
+                     <label><input type="radio" name="legend-orientation" value="vertical"> Vertical</label>
+                 </div>
+                 <label><span>Text Size (px)</span><input type="number" id="legend-text-size" value="14" min="8" max="48"></label>
+                 <label><span>Text Color</span><input type="color" id="legend-text-color" value="#333333"></label>
+             </div>
+        </div>
+        <div class="setting-group">
+            <h3>Total Number</h3>
+            <label><span>Text Size (px)</span><input type="number" id="total-text-size" value="28" min="8" max="96"></label>
+            <label><span>Text Color</span><input type="color" id="total-text-color" value="#333333"></label>
+        </div>
+        <div class="setting-group">
+            <h3>Auto Refresh</h3>
+            <label><span>Enable Auto Refresh</span><input type="checkbox" id="auto-refresh-enabled"></label>
+            <div id="auto-refresh-options" class="hidden">
+                <label><span>Refresh Interval (seconds)</span><input type="number" id="refresh-interval" value="30" min="5" max="3600"></label>
+            </div>
+        </div>
+        <div class="setting-group">
+            <h3>Sharing</h3>
+            <button id="copy-share-link" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #dbeafe; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 16px;">Copy Shareable Link</button>
+            <button id="export-html" style="width: 100%; padding: 12px; font-weight: bold; cursor: pointer; background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; font-size: 16px; margin-top: 6px;">Export as Standalone HTML</button>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <div id="controls-container" class="controls"></div>
+        <div id="parliament-svg-container">
+            <svg id="parliament-chart" width="900" height="600" viewBox="0 0 900 600" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div id="legend-container" class="legend"></div>
+        <div id="table-container"></div>
+        <div id="error-message"></div>
+    </div>
+</div>
+
+<div id="export-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:8px; padding:24px; max-width:90%; max-height:90%; overflow:auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+        <h2 style="margin-top:0;">Exported Code</h2>
+        <textarea id="exported-code" readonly style="width:100%; min-height:400px; font-family:monospace; font-size:12px; padding:12px; border:1px solid #ccc; border-radius:4px;"></textarea>
+        <div style="margin-top:16px; display:flex; gap:8px;">
+            <button id="copy-code" style="padding:10px 20px; background:#0066cc; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Copy to Clipboard</button>
+            <button id="close-modal" style="padding:10px 20px; background:#666; color:#fff; border:none; border-radius:4px; cursor:pointer;">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// =====================================================
+// GOOGLE SHEETS API CACHE (Same as W2 File)
+// =====================================================
+if (!window.parliamentChartDataCache) {
+  window.parliamentChartDataCache = {
+    memoryCache: {},
+    pending: {},
+    CACHE_KEY_PREFIX: 'parliamentChart_csv_',
+    CACHE_DURATION: 0 * 1000, // 0 seconds
+    VERSION: 'v1',
+    
+    getCacheKey: function(url) {
+      return this.CACHE_KEY_PREFIX + this.VERSION + '_' + btoa(url).substring(0, 50);
+    },
+    
+    getFromLocalStorage: function(url) {
+      var cacheKey = this.getCacheKey(url);
+      try {
+        var cached = localStorage.getItem(cacheKey);
+        if (!cached) return null;
+        var data = JSON.parse(cached);
+        var now = Date.now();
+        if (data.timestamp && (now - data.timestamp) < this.CACHE_DURATION) {
+          console.log('[Parliament Cache] HIT - localStorage for:', url.substring(0, 60));
+          return data.content;
+        } else {
+          console.log('[Parliament Cache] EXPIRED - Removing stale cache');
+          localStorage.removeItem(cacheKey);
+          return null;
+        }
+      } catch(e) {
+        console.warn('[Parliament Cache] localStorage error:', e);
+        return null;
+      }
+    },
+    
+    saveToLocalStorage: function(url, content) {
+      var cacheKey = this.getCacheKey(url);
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          content: content,
+          timestamp: Date.now(),
+          url: url
+        }));
+        console.log('[Parliament Cache] SAVED - Cached for 30 seconds');
+      } catch(e) {
+        console.warn('[Parliament Cache] Save failed, cleaning old cache');
+        this.cleanOldCache();
+      }
+    },
+    
+    cleanOldCache: function() {
+      try {
+        var now = Date.now();
+        var keysToRemove = [];
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i);
+          if (key && key.startsWith(this.CACHE_KEY_PREFIX)) {
+            var item = localStorage.getItem(key);
+            if (item) {
+              try {
+                var parsed = JSON.parse(item);
+                if (!parsed.timestamp || (now - parsed.timestamp) > this.CACHE_DURATION) {
+                  keysToRemove.push(key);
+                }
+              } catch(e) {
+                keysToRemove.push(key);
+              }
+            }
+          }
+        }
+        keysToRemove.forEach(function(key){ localStorage.removeItem(key); });
+        if (keysToRemove.length > 0) {
+          console.log('[Parliament Cache] Cleaned', keysToRemove.length, 'old entries');
+        }
+      } catch(e) {
+        console.warn('[Parliament Cache] Clean failed:', e);
+      }
+    },
+    
+    fetchCsv: function(url) {
+      // Layer 1: Check memory cache
+      if (this.memoryCache[url]) {
+        console.log('[Parliament Cache] HIT - Memory cache');
+        return Promise.resolve(this.memoryCache[url]);
+      }
+      
+      // Layer 2: Check localStorage
+      var cachedData = this.getFromLocalStorage(url);
+      if (cachedData) {
+        this.memoryCache[url] = cachedData;
+        return Promise.resolve(cachedData);
+      }
+      
+      // Layer 3: Check if already pending
+      if (this.pending[url]) {
+        console.log('[Parliament Cache] Request already pending, reusing promise');
+        return this.pending[url];
+      }
+      
+      // Layer 4: Fetch from network
+      var isApiUrl = url.indexOf('sheets.googleapis.com') !== -1 || 
+                     url.indexOf('cloudfront.net') !== -1;
+      console.log('[Parliament Cache] MISS - Fetching from ' + (isApiUrl ? 'Google Sheets API' : 'CSV export'));
+      
+      var self = this;
+      this.pending[url] = fetch(url, { cache: 'default' })
+        .then(function(response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return isApiUrl ? response.json() : response.text();
+        })
+        .then(function(data) {
+          var csvText;
+          if (isApiUrl) {
+            csvText = convertApiJsonToCsv(data);
+            console.log('[Parliament Cache] Converted API JSON to CSV format');
+          } else {
+            csvText = data;
+          }
+          
+          self.memoryCache[url] = csvText;
+          self.saveToLocalStorage(url, csvText);
+          delete self.pending[url];
+          return csvText;
+        })
+        .catch(function(error) {
+          delete self.pending[url];
+          console.error('[Parliament Cache] Fetch failed:', error);
+          throw error;
+        });
+      
+      return this.pending[url];
+    }
+  };
+  
+  // Initialize: clean old caches on startup
+  window.parliamentChartDataCache.cleanOldCache();
+}
+
+// Convert Google Sheets API JSON response to CSV format
+function convertApiJsonToCsv(jsonResponse) {
+  try {
+    var rows = jsonResponse.values;
+    if (!rows || rows.length === 0) {
+      console.warn('[API Converter] No data in API response');
+      return '';
+    }
+    
+    var csvLines = [];
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var csvRow = [];
+      
+      for (var j = 0; j < row.length; j++) {
+        var cell = row[j] || '';
+        // Escape cells containing commas, quotes, or newlines
+        if (cell.indexOf(',') !== -1 || cell.indexOf('"') !== -1 || cell.indexOf('\n') !== -1) {
+          cell = '"' + cell.replace(/"/g, '""') + '"';
+        }
+        csvRow.push(cell);
+      }
+      
+      csvLines.push(csvRow.join(','));
+    }
+    
+    return csvLines.join('\n');
+  } catch(e) {
+    console.error('[API Converter] Error converting JSON to CSV:', e);
+    return '';
+  }
+}
+
+// =====================================================
+// GOOGLE SHEETS CONFIGURATION
+// =====================================================
+const CLOUDFRONT_DOMAIN = 'd167rmgvosnh6r.cloudfront.net';
+const SHEET_ID = '1i_CXEvHPkzPVC15SHovxnIzjqm5hREvSqDZk1TCwAi0';
+const API_KEY = 'AIzaSyC0zoFtuDm_zspdl_D0q1Nqtnos8AZOSsc';
+const API_BASE = 'https://' + CLOUDFRONT_DOMAIN + '/v4/spreadsheets/' + SHEET_ID + '/values/';
+
+// API URL for live_election_results tab
+const LIVE_RESULTS_API_URL = API_BASE + 'live_election_results?key=' + API_KEY;
+
+// =====================================================
+// SAMPLE DATA (for preview mode)
+// =====================================================
+const SAMPLE_DATA = {
+    years: [
+        { year: "2020", label: "2020 Seats" },
+        { year: "2020_leads", label: "2020 Leads" },
+        { year: "2024", label: "2024 Seats" },
+        { year: "2024_leads", label: "2024 Leads" }
+    ],
+    parties: [
+        { name: "NDA", color: "#FF9933", "2020": 125, "2020_leads": 0, "2024": 0, "2024_leads": 128 },
+        { name: "INDIA", color: "#19AAED", "2020": 110, "2020_leads": 0, "2024": 0, "2024_leads": 115 },
+        { name: "Others", color: "#808080", "2020": 8, "2020_leads": 0, "2024": 0, "2024_leads": 0 }
+    ]
+};
+
+// =====================================================
+// LOAD DATA FROM GOOGLE SHEETS
+// =====================================================
+function loadFromGoogleSheets() {
+    console.log('[Parliament Chart] Loading data from Google Sheets API...');
+    
+    return window.parliamentChartDataCache.fetchCsv(LIVE_RESULTS_API_URL)
+        .then(function(csvText) {
+            console.log('[Parliament Chart] Received CSV data, parsing...');
+            const rows = parseCSV(csvText);
+            
+            if (!rows || rows.length === 0) {
+                throw new Error('No data found in Google Sheets');
+            }
+            
+            console.log('[Parliament Chart] Parsed', rows.length, 'rows from Google Sheets');
+            
+            // Convert CSV rows to chart data format
+            const parties = [];
+            const years = [
+                { year: "2020", label: "2020 Seats" },
+                { year: "2020_leads", label: "2020 Leads" },
+                { year: "2024", label: "2024 Seats" },
+                { year: "2024_leads", label: "2024 Leads" }
+            ];
+            
+            rows.forEach(function(row) {
+                // Expected columns: Party, Color, 2020_Seats, 2020_Leads, 2024_Seats, 2024_Leads
+                const party = {
+                    name: row.Party || row.party || '',
+                    color: row.Color || row.color || '#808080',
+                    "2020": parseInt(row['2020_Seats'] || row['2020_seats'] || 0) || 0,
+                    "2020_leads": parseInt(row['2020_Leads'] || row['2020_leads'] || 0) || 0,
+                    "2024": parseInt(row['2024_Seats'] || row['2024_seats'] || 0) || 0,
+                    "2024_leads": parseInt(row['2024_Leads'] || row['2024_leads'] || 0) || 0
+                };
+                
+                if (party.name) {
+                    parties.push(party);
+                }
+            });
+            
+            console.log('[Parliament Chart] Loaded', parties.length, 'parties from Google Sheets');
+            
+            return { years: years, parties: parties };
+        })
+        .catch(function(error) {
+            console.error('[Parliament Chart] Failed to load from Google Sheets:', error);
+            throw error;
+        });
+}
+
+// CSV Parser function
+function parseCSV(csvText) {
+    const lines = csvText.replace(/\r\n?/g, '\n').split('\n').filter(line => line.trim());
+    if (!lines.length) return [];
+    
+    const header = lines.shift().split(',').map(s => s.trim().replace(/^"(.*)"$/, '$1'));
+    const rows = [];
+    
+    lines.forEach(function(line) {
+        if (!line.trim()) return;
+        
+        const cells = [];
+        let cell = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+            const ch = line.charAt(i);
+            if (ch === '"') {
+                inQuotes = !inQuotes;
+            } else if (ch === ',' && !inQuotes) {
+                cells.push(cell.trim().replace(/^"(.*)"$/, '$1'));
+                cell = '';
+            } else {
+                cell += ch;
+            }
+        }
+        cells.push(cell.trim().replace(/^"(.*)"$/, '$1'));
+        
+        if (cells.length > 0) {
+            const obj = {};
+            header.forEach(function(h, i) {
+                obj[h] = cells[i] !== undefined ? cells[i] : '';
+            });
+            rows.push(obj);
+        }
+    });
+    
+    return rows;
+}
+
+// =====================================================
+// REST OF THE ORIGINAL CODE (UNCHANGED)
+// =====================================================
+let ELECTION_DATA = { years: [], parties: [] };
+let PARTY_COLORS = {};
+
+let state = {
+    arc_size_degrees: 180,
+    inner_radius_pct: 30,
+    seat_size_mode: "auto",
+    fixed_seat_radius: 8,
+    selected_year_index: 0,
+    first_column_label: "Party",
+    majority_line: {
+        enabled: false,
+        label: "Majority",
+        position_pct: 50,
+        color: "#000000",
+        width: 1.5
+    },
+    legend: {
+        enabled: true,
+        orientation: "horizontal",
+        text_size: 14,
+        text_color: "#333333"
+    },
+    total_number: {
+        text_size: 28,
+        text_color: "#333333"
+    },
+    animation_duration: 300,
+    auto_refresh: {
+        enabled: false,
+        interval_seconds: 30
+    }
+};
+
+const svg = d3.select("#parliament-chart");
+const chartGroup = svg.append("g");
+const majorityLineGroup = svg.append("g").attr("class", "majority-line-group");
+const labelsGroup = svg.append("g").attr("class", "labels-group");
+
+let refreshIntervalId = null;
+
+// =====================================================
+// DATA INITIALIZATION
+// =====================================================
+function loadDataAndInitialize() {
+    const useLiveData = document.getElementById('use-live-data');
+    const useSample = document.getElementById('use-sample-preview');
+    
+    if (useSample && useSample.checked) {
+        console.log('[Parliament Chart] Using sample data');
+        applySampleData();
+        return;
+    }
+    
+    if (useLiveData && useLiveData.checked) {
+        console.log('[Parliament Chart] Loading live data from Google Sheets...');
+        
+        loadFromGoogleSheets()
+            .then(function(data) {
+                ELECTION_DATA = data;
+                PARTY_COLORS = {};
+                data.parties.forEach(function(p) {
+                    PARTY_COLORS[p.name] = p.color;
+                });
+                console.log('[Parliament Chart] Successfully loaded live data');
+                initializeYearControls();
+                update("init");
+            })
+            .catch(function(error) {
+                console.error('[Parliament Chart] Error loading Google Sheets data:', error);
+                document.getElementById('error-message').textContent = 
+                    'Error loading data from Google Sheets. Using sample data instead.';
+                applySampleData();
+            });
+    } else {
+        console.log('[Parliament Chart] Using sample data (live data disabled)');
+        applySampleData();
+    }
+}
+
+function applySampleData() {
+    ELECTION_DATA = SAMPLE_DATA;
+    PARTY_COLORS = {};
+    SAMPLE_DATA.parties.forEach(function(p) {
+        PARTY_COLORS[p.name] = p.color;
+    });
+    initializeYearControls();
+    update("sample");
+}
+
+function initializeYearControls() {
+    const controlsContainer = document.getElementById('controls-container');
+    if (!controlsContainer) return;
+    
+    controlsContainer.innerHTML = '';
+    
+    ELECTION_DATA.years.forEach(function(yearData, index) {
+        const btn = document.createElement('button');
+        btn.textContent = yearData.label;
+        btn.className = index === state.selected_year_index ? 'active' : '';
+        btn.addEventListener('click', function() {
+            state.selected_year_index = index;
+            updateYearControlsUI();
+            update("year-change");
+        });
+        controlsContainer.appendChild(btn);
+    });
+}
+
+function updateYearControlsUI() {
+    const buttons = document.querySelectorAll('.controls button');
+    buttons.forEach(function(btn, idx) {
+        btn.className = idx === state.selected_year_index ? 'active' : '';
+    });
+}
+
+// =====================================================
+// CHART RENDERING FUNCTIONS
+// =====================================================
+function update(reason) {
+    console.log('[Parliament Chart] Update triggered:', reason);
+    const selectedYear = ELECTION_DATA.years[state.selected_year_index];
+    if (!selectedYear) return;
+    
+    const yearKey = selectedYear.year;
+    const partyData = ELECTION_DATA.parties.map(function(p) {
+        return {
+            party: p.name,
+            seats: p[yearKey] || 0,
+            color: p.color
+        };
+    });
+    
+    renderParliamentChart(partyData);
+    renderTable(partyData, yearKey);
+    renderLegend(partyData);
+}
+
+function renderParliamentChart(partyData) {
+    const container = document.getElementById('parliament-svg-container');
+    const bbox = container.getBoundingClientRect();
+    const width = bbox.width || 900;
+    const height = bbox.height || 600;
+    
+    svg.attr("width", width).attr("height", height).attr("viewBox", `0 0 ${width} ${height}`);
+    
+    const cx = width / 2;
+    const cy = height * 0.65;
+    const outerRadius = Math.min(width, height) * 0.38;
+    const innerRadiusPct = state.inner_radius_pct;
+    const innerRadius = outerRadius * (innerRadiusPct / 100);
+    
+    const arcSizeDegrees = state.arc_size_degrees;
+    const startAngle = (180 - arcSizeDegrees / 2) * (Math.PI / 180);
+    const endAngle = (180 + arcSizeDegrees / 2) * (Math.PI / 180);
+    
+    let seats = [];
+    partyData.forEach(function(pd) {
+        for (let i = 0; i < pd.seats; i++) {
+            seats.push({ party: pd.party, color: pd.color });
+        }
+    });
+    
+    const totalSeats = seats.length;
+    if (totalSeats === 0) {
+        chartGroup.selectAll("*").remove();
+        return;
+    }
+    
+    let seatRadius;
+    if (state.seat_size_mode === "fixed") {
+        seatRadius = state.fixed_seat_radius;
+    } else {
+        const avgRadiusForSeats = (innerRadius + outerRadius) / 2;
+        const arcLength = avgRadiusForSeats * (endAngle - startAngle);
+        const maxSeatDiameter = arcLength / Math.sqrt(totalSeats);
+        seatRadius = Math.max(2, Math.min(maxSeatDiameter / 2, 12));
+    }
+    
+    const numRows = Math.ceil((outerRadius - innerRadius) / (seatRadius * 2.2));
+    const rowSeats = distributeSeats(totalSeats, numRows, innerRadius, outerRadius, startAngle, endAngle, seatRadius);
+    
+    let seatIndex = 0;
+    const seatPositions = [];
+    rowSeats.forEach(function(row) {
+        const r = row.radius;
+        const count = row.count;
+        const angleStep = (endAngle - startAngle) / Math.max(count - 1, 1);
+        for (let i = 0; i < count && seatIndex < totalSeats; i++, seatIndex++) {
+            const angle = startAngle + i * angleStep;
+            const x = cx + r * Math.cos(angle);
+            const y = cy + r * Math.sin(angle);
+            seatPositions.push({
+                x: x,
+                y: y,
+                party: seats[seatIndex].party,
+                color: seats[seatIndex].color
+            });
+        }
+    });
+    
+    const circles = chartGroup.selectAll("circle.parliament-seat").data(seatPositions, function(d, i) { return i; });
+    
+    circles.exit()
+        .transition()
+        .duration(state.animation_duration)
+        .attr("r", 0)
+        .remove();
+    
+    circles.enter()
+        .append("circle")
+        .attr("class", "parliament-seat")
+        .attr("cx", function(d) { return d.x; })
+        .attr("cy", function(d) { return d.y; })
+        .attr("r", 0)
+        .attr("fill", function(d) { return d.color; })
+        .on("mouseenter", function(event, d) { handleSeatHover(d.party, true); })
+        .on("mouseleave", function() { handleSeatHover(null, false); })
+        .transition()
+        .duration(state.animation_duration)
+        .attr("r", seatRadius);
+    
+    circles
+        .transition()
+        .duration(state.animation_duration)
+        .attr("cx", function(d) { return d.x; })
+        .attr("cy", function(d) { return d.y; })
+        .attr("fill", function(d) { return d.color; })
+        .attr("r", seatRadius);
+    
+    drawMajorityLine(cx, cy, innerRadius, outerRadius, startAngle, endAngle);
+    drawTotalNumber(cx, cy, innerRadius, totalSeats);
+}
+
+function distributeSeats(totalSeats, numRows, innerRadius, outerRadius, startAngle, endAngle, seatRadius) {
+    const rows = [];
+    const radiusStep = (outerRadius - innerRadius) / numRows;
+    
+    for (let i = 0; i < numRows; i++) {
+        const r = innerRadius + radiusStep * (i + 0.5);
+        rows.push({ radius: r, count: 0 });
+    }
+    
+    let remaining = totalSeats;
+    for (let i = numRows - 1; i >= 0 && remaining > 0; i--) {
+        const r = rows[i].radius;
+        const arcLength = r * (endAngle - startAngle);
+        const maxSeats = Math.floor(arcLength / (seatRadius * 2.2));
+        const assign = Math.min(maxSeats, remaining);
+        rows[i].count = assign;
+        remaining -= assign;
+    }
+    
+    if (remaining > 0) {
+        for (let i = 0; i < numRows && remaining > 0; i++) {
+            rows[i].count++;
+            remaining--;
+        }
+    }
+    
+    return rows;
+}
+
+function drawMajorityLine(cx, cy, innerRadius, outerRadius, startAngle, endAngle) {
+    majorityLineGroup.selectAll("*").remove();
+    
+    if (!state.majority_line.enabled) return;
+    
+    const position = state.majority_line.position_pct / 100;
+    const angle = startAngle + (endAngle - startAngle) * position;
+    
+    const x1 = cx + innerRadius * Math.cos(angle);
+    const y1 = cy + innerRadius * Math.sin(angle);
+    const x2 = cx + outerRadius * Math.cos(angle);
+    const y2 = cy + outerRadius * Math.sin(angle);
+    
+    majorityLineGroup.append("line")
+        .attr("x1", x1)
+        .attr("y1", y1)
+        .attr("x2", x2)
+        .attr("y2", y2)
+        .attr("stroke", state.majority_line.color)
+        .attr("stroke-width", state.majority_line.width)
+        .attr("stroke-dasharray", "5,5");
+    
+    if (state.majority_line.label) {
+        const labelX = cx + (outerRadius + 20) * Math.cos(angle);
+        const labelY = cy + (outerRadius + 20) * Math.sin(angle);
+        
+        majorityLineGroup.append("text")
+            .attr("x", labelX)
+            .attr("y", labelY)
+            .attr("text-anchor", "middle")
+            .attr("fill", state.majority_line.color)
+            .style("font-size", "12px")
+            .style("font-weight", "bold")
+            .text(state.majority_line.label);
+    }
+}
+
+function drawTotalNumber(cx, cy, innerRadius, total) {
+    labelsGroup.selectAll("*").remove();
+    
+    labelsGroup.append("text")
+        .attr("x", cx)
+        .attr("y", cy - innerRadius * 0.3)
+        .attr("text-anchor", "middle")
+        .attr("fill", state.total_number.text_color)
+        .style("font-size", state.total_number.text_size + "px")
+        .style("font-weight", "bold")
+        .text(total);
+}
+
+function renderTable(partyData, yearKey) {
+    const tableContainer = document.getElementById('table-container');
+    if (!tableContainer) return;
+    
+    const sortedData = partyData.slice().sort(function(a, b) { return b.seats - a.seats; });
+    
+    let html = '<table><thead><tr>';
+    html += '<th>' + state.first_column_label + '</th>';
+    html += '<th style="text-align: center;">Seats</th>';
+    html += '</tr></thead><tbody>';
+    
+    sortedData.forEach(function(pd) {
+        html += '<tr data-party="' + pd.party + '">';
+        html += '<td><div class="party-name">';
+        html += '<span class="color-swatch" style="background:' + pd.color + ';"></span>';
+        html += pd.party;
+        html += '</div></td>';
+        html += '<td style="text-align: center; font-weight: bold;">' + pd.seats + '</td>';
+        html += '</tr>';
+    });
+    
+    html += '</tbody></table>';
+    tableContainer.innerHTML = html;
+    
+    const rows = tableContainer.querySelectorAll('tbody tr');
+    rows.forEach(function(row) {
+        const partyName = row.getAttribute('data-party');
+        row.addEventListener('mouseenter', function() { handleSeatHover(partyName, true); });
+        row.addEventListener('mouseleave', function() { handleSeatHover(null, false); });
+    });
+}
+
+function renderLegend(partyData) {
+    const legendContainer = document.getElementById('legend-container');
+    if (!legendContainer) return;
+    
+    legendContainer.innerHTML = '';
+    
+    if (!state.legend.enabled) return;
+    
+    legendContainer.className = 'legend ' + 
+        (state.legend.orientation === 'vertical' ? 'legend-vertical' : '');
+    
+    partyData.forEach(function(pd) {
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+        item.setAttribute('data-party', pd.party);
+        item.style.fontSize = state.legend.text_size + 'px';
+        item.style.color = state.legend.text_color;
+        
+        const swatch = document.createElement('span');
+        swatch.className = 'legend-swatch';
+        swatch.style.width = state.legend.text_size + 'px';
+        swatch.style.height = state.legend.text_size + 'px';
+        swatch.style.backgroundColor = pd.color;
+        swatch.style.borderRadius = '3px';
+        swatch.style.display = 'inline-block';
+        
+        item.appendChild(swatch);
+        item.appendChild(document.createTextNode(' ' + pd.party + ' (' + pd.seats + ')'));
+        
+        item.addEventListener('mouseenter', function() { handleSeatHover(pd.party, true); });
+        item.addEventListener('mouseleave', function() { handleSeatHover(null, false); });
+        
+        legendContainer.appendChild(item);
+    });
+}
+
+function handleSeatHover(partyName, isHovering) {
+    if (isHovering && partyName) {
+        chartGroup.selectAll("circle.parliament-seat").classed("dimmed", function(d) {
+            return d.party !== partyName;
+        });
+        
+        const tableRows = document.querySelectorAll('#table-container tbody tr');
+        tableRows.forEach(function(row) {
+            if (row.getAttribute('data-party') === partyName) {
+                row.style.backgroundColor = '#f0f0f0';
+            } else {
+                row.style.opacity = '0.4';
+            }
+        });
+        
+        const legendItems = document.querySelectorAll('.legend-item');
+        legendItems.forEach(function(item) {
+            if (item.getAttribute('data-party') === partyName) {
+                item.style.fontWeight = 'bold';
+            } else {
+                item.style.opacity = '0.4';
+            }
+        });
+    } else {
+        chartGroup.selectAll("circle.parliament-seat").classed("dimmed", false);
+        
+        const tableRows = document.querySelectorAll('#table-container tbody tr');
+        tableRows.forEach(function(row) {
+            row.style.backgroundColor = '';
+            row.style.opacity = '';
+        });
+        
+        const legendItems = document.querySelectorAll('.legend-item');
+        legendItems.forEach(function(item) {
+            item.style.fontWeight = '';
+            item.style.opacity = '';
+        });
+    }
+}
+
+// =====================================================
+// AUTO REFRESH
+// =====================================================
+function startAutoRefresh() {
+    stopAutoRefresh();
+    
+    if (!state.auto_refresh.enabled) return;
+    
+    const intervalMs = state.auto_refresh.interval_seconds * 1000;
+    console.log('[Parliament Chart] Starting auto-refresh every', state.auto_refresh.interval_seconds, 'seconds');
+    
+    refreshIntervalId = setInterval(function() {
+        console.log('[Parliament Chart] Auto-refresh triggered');
+        loadDataAndInitialize();
+    }, intervalMs);
+}
+
+function stopAutoRefresh() {
+    if (refreshIntervalId !== null) {
+        clearInterval(refreshIntervalId);
+        refreshIntervalId = null;
+        console.log('[Parliament Chart] Auto-refresh stopped');
+    }
+}
+
+// =====================================================
+// EVENT LISTENERS
+// =====================================================
+function setupEventListeners() {
+    // Arc size
+    const arcSizeInput = document.getElementById('arc-size');
+    const arcSizeValue = document.getElementById('arc-size-value');
+    if (arcSizeInput && arcSizeValue) {
+        arcSizeInput.addEventListener('input', function() {
+            state.arc_size_degrees = +this.value;
+            arcSizeValue.textContent = this.value;
+            update("arc-size");
+        });
+    }
+    
+    // Inner radius
+    const innerRadiusInput = document.getElementById('inner-radius');
+    const innerRadiusValue = document.getElementById('inner-radius-value');
+    if (innerRadiusInput && innerRadiusValue) {
+        innerRadiusInput.addEventListener('input', function() {
+            state.inner_radius_pct = +this.value;
+            innerRadiusValue.textContent = this.value;
+            update("inner-radius");
+        });
+    }
+    
+    // Seat size mode
+    const seatSizeRadios = document.querySelectorAll('input[name="seat-size-mode"]');
+    const fixedSeatSizeContainer = document.getElementById('fixed-seat-size-container');
+    seatSizeRadios.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            state.seat_size_mode = this.value;
+            if (fixedSeatSizeContainer) {
+                fixedSeatSizeContainer.classList.toggle('hidden', this.value !== 'fixed');
+            }
+            update("seat-size-mode");
+        });
+    });
+    
+    const fixedSeatRadiusInput = document.getElementById('fixed-seat-radius');
+    if (fixedSeatRadiusInput) {
+        fixedSeatRadiusInput.addEventListener('input', function() {
+            state.fixed_seat_radius = +this.value;
+            update("fixed-seat-radius");
+        });
+    }
+    
+    // Data source toggles
+    const useLiveData = document.getElementById('use-live-data');
+    const useSamplePreview = document.getElementById('use-sample-preview');
+    
+    if (useLiveData) {
+        useLiveData.addEventListener('change', function() {
+            if (this.checked && useSamplePreview) {
+                useSamplePreview.checked = false;
+            }
+            loadDataAndInitialize();
+        });
+    }
+    
+    if (useSamplePreview) {
+        useSamplePreview.addEventListener('change', function() {
+            if (this.checked && useLiveData) {
+                useLiveData.checked = false;
+            }
+            loadDataAndInitialize();
+        });
+    }
+    
+    // First column label
+    const firstColumnLabel = document.getElementById('first-column-label');
+    if (firstColumnLabel) {
+        firstColumnLabel.addEventListener('input', function() {
+            state.first_column_label = this.value;
+            update("first-column-label");
+        });
+    }
+    
+    // Majority line
+    const majorityLineEnabled = document.getElementById('majority-line-enabled');
+    const majorityLineOptions = document.getElementById('majority-line-options');
+    if (majorityLineEnabled && majorityLineOptions) {
+        majorityLineEnabled.addEventListener('change', function() {
+            state.majority_line.enabled = this.checked;
+            majorityLineOptions.classList.toggle('hidden', !this.checked);
+            update("majority-line-enabled");
+        });
+    }
+    
+    const majorityLineLabel = document.getElementById('majority-line-label');
+    if (majorityLineLabel) {
+        majorityLineLabel.addEventListener('input', function() {
+            state.majority_line.label = this.value;
+            update("majority-line-label");
+        });
+    }
+    
+    const majorityLinePosition = document.getElementById('majority-line-position');
+    if (majorityLinePosition) {
+        majorityLinePosition.addEventListener('input', function() {
+            state.majority_line.position_pct = +this.value;
+            update("majority-line-position");
+        });
+    }
+    
+    const majorityLineColor = document.getElementById('majority-line-color');
+    if (majorityLineColor) {
+        majorityLineColor.addEventListener('input', function() {
+            state.majority_line.color = this.value;
+            update("majority-line-color");
+        });
+    }
+    
+    const majorityLineWidth = document.getElementById('majority-line-width');
+    if (majorityLineWidth) {
+        majorityLineWidth.addEventListener('input', function() {
+            state.majority_line.width = +this.value;
+            update("majority-line-width");
+        });
+    }
+    
+    // Legend
+    const legendEnabled = document.getElementById('legend-enabled');
+    const legendOptions = document.getElementById('legend-options');
+    if (legendEnabled && legendOptions) {
+        legendEnabled.addEventListener('change', function() {
+            state.legend.enabled = this.checked;
+            legendOptions.classList.toggle('hidden', !this.checked);
+            update("legend-enabled");
+        });
+    }
+    
+    const legendOrientation = document.querySelectorAll('input[name="legend-orientation"]');
+    legendOrientation.forEach(function(radio) {
+        radio.addEventListener('change', function() {
+            state.legend.orientation = this.value;
+            update("legend-orientation");
+        });
+    });
+    
+    const legendTextSize = document.getElementById('legend-text-size');
+    if (legendTextSize) {
+        legendTextSize.addEventListener('input', function() {
+            state.legend.text_size = +this.value;
+            update("legend-text-size");
+        });
+    }
+    
+    const legendTextColor = document.getElementById('legend-text-color');
+    if (legendTextColor) {
+        legendTextColor.addEventListener('input', function() {
+            state.legend.text_color = this.value;
+            update("legend-text-color");
+        });
+    }
+    
+    // Total number
+    const totalTextSize = document.getElementById('total-text-size');
+    if (totalTextSize) {
+        totalTextSize.addEventListener('input', function() {
+            state.total_number.text_size = +this.value;
+            update("total-text-size");
+        });
+    }
+    
+    const totalTextColor = document.getElementById('total-text-color');
+    if (totalTextColor) {
+        totalTextColor.addEventListener('input', function() {
+            state.total_number.text_color = this.value;
+            update("total-text-color");
+        });
+    }
+    
+    // Auto refresh
+    const autoRefreshEnabled = document.getElementById('auto-refresh-enabled');
+    const autoRefreshOptions = document.getElementById('auto-refresh-options');
+    if (autoRefreshEnabled && autoRefreshOptions) {
+        autoRefreshEnabled.addEventListener('change', function() {
+            state.auto_refresh.enabled = this.checked;
+            autoRefreshOptions.classList.toggle('hidden', !this.checked);
+            
+            if (this.checked) {
+                startAutoRefresh();
+            } else {
+                stopAutoRefresh();
+            }
+        });
+    }
+    
+    const refreshInterval = document.getElementById('refresh-interval');
+    if (refreshInterval) {
+        refreshInterval.addEventListener('input', function() {
+            state.auto_refresh.interval_seconds = +this.value;
+            if (state.auto_refresh.enabled) {
+                startAutoRefresh();
+            }
+        });
+    }
+    
+    // Export buttons
+    const exportHtmlBtn = document.getElementById('export-html');
+    if (exportHtmlBtn) {
+        exportHtmlBtn.addEventListener('click', generateStandaloneHTML);
+    }
+    
+    const exportDivEmbedBtn = document.getElementById('export-div-embed');
+    if (exportDivEmbedBtn) {
+        exportDivEmbedBtn.addEventListener('click', generateDivEmbedSnippet);
+    }
+    
+    const exportFixedDivEmbedBtn = document.getElementById('export-fixed-div-embed');
+    if (exportFixedDivEmbedBtn) {
+        exportFixedDivEmbedBtn.addEventListener('click', generateFixedDivEmbedSnippet);
+    }
+    
+    const copyShareLinkBtn = document.getElementById('copy-share-link');
+    if (copyShareLinkBtn) {
+        copyShareLinkBtn.addEventListener('click', copyShareableLink);
+    }
+    
+    // Modal controls
+    const copyCodeBtn = document.getElementById('copy-code');
+    const closeModalBtn = document.getElementById('close-modal');
+    const exportModal = document.getElementById('export-modal');
+    
+    if (copyCodeBtn) {
+        copyCodeBtn.addEventListener('click', function() {
+            const textarea = document.getElementById('exported-code');
+            if (textarea) {
+                textarea.select();
+                document.execCommand('copy');
+                alert('Code copied to clipboard!');
+            }
+        });
+    }
+    
+    if (closeModalBtn && exportModal) {
+        closeModalBtn.addEventListener('click', function() {
+            exportModal.style.display = 'none';
+        });
+    }
+    
+    // Window resize
+    window.addEventListener('resize', function() {
+        update("resize");
+    });
+}
+
+function copyShareableLink() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('config', encodeStateToURL());
+    
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(url.toString()).then(function() {
+            alert('Shareable link copied to clipboard!');
+        });
+    } else {
+        alert('Shareable link: ' + url.toString());
+    }
+}
+
+function encodeStateToURL() {
+    return btoa(JSON.stringify(state));
+}
+
+function generateStandaloneHTML() {
+    alert('Export functionality requires additional implementation');
+}
+
+function generateDivEmbedSnippet() {
+    alert('Embed snippet generation requires additional implementation');
+}
+
+function generateFixedDivEmbedSnippet() {
+    alert('Fixed embed snippet generation requires additional implementation');
+}
+
+// =====================================================
+// INITIALIZATION
+// =====================================================
+function initializeGenerator() {
+    setupEventListeners();
+    loadDataAndInitialize();
+}
+
+// Start the application
+initializeGenerator();
+
+</script>
+</body>
+</html>
