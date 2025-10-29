@@ -874,10 +874,7 @@ function convertApiJsonToCsv(jsonResponse) {
         legendContainer.selectAll(".legend-item").data(parties, d => d.party).join("div")
             .attr("class", "legend-item").style("cursor", "pointer")
             .html(d => {
-                let label = `${d.party} (${d.seats}`;
-                if (d.leads > 0) label += ` + ${d.leads} leads`;
-                label += ')';
-                return `<div class="legend-swatch" style="width: 15px; height: 15px; background-color: ${d.color}; border-radius: 3px;"></div><span>${label}</span>`;
+                return `<div class="legend-swatch" style="width: 15px; height: 15px; background-color: ${d.color}; border-radius: 3px;"></div><span>${d.party}</span>`;
             })
             .on("mouseover", (event, d) => highlightParty(d.party, d.color))
             .on("mouseout", resetHighlighting);
